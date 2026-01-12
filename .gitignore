@@ -1,0 +1,38 @@
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+server-output.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# Build outputs (Julia)
+Manifest.toml
+.julia/
+
+# Test artifacts
+test_*.jl
+*.o
+*.so
+*.dylib
+
+# Data files
+data/*.json
+
+# Temporary files
+tmp/
+temp/
