@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Portal</title>
+  <link rel="stylesheet" href="css/student-dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>📚 Portal</h1>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-section="dashboard">
+          <span class="icon">📊</span>
+          <span class="label">Dashboard</span>
+        </a>
+        <a href="#" class="nav-item" data-section="courses">
+          <span class="icon">📖</span>
+          <span class="label">Courses</span>
+        </a>
+        <a href="#" class="nav-item" data-section="materials">
+          <span class="icon">📁</span>
+          <span class="label">Materials</span>
+        </a>
+        <a href="#" class="nav-item" data-section="ai">
+          <span class="icon">🤖</span>
+          <span class="label">AI Companion</span>
+        </a>
+      </nav>
+      
+      <button class="logout-btn" onclick="logout()">🚪 Logout</button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <h2 id="section-title">Dashboard</h2>
+        <div class="top-bar-right">
+          <button class="profile-btn" onclick="toggleProfilePopup()">
+            <span class="profile-icon">👤</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Profile Popup -->
+      <div id="profilePopup" class="profile-popup hidden">
+        <div class="profile-popup-content">
+          <div class="profile-header">
+            <h3>Student Profile</h3>
+            <button class="close-btn" onclick="toggleProfilePopup()">✕</button>
+          </div>
+          <div class="profile-body">
+            <div class="profile-field">
+              <label>Full Name:</label>
+              <p id="profileFullName">-</p>
+            </div>
+            <div class="profile-field">
+              <label>Email:</label>
+              <p id="profileEmail">-</p>
+            </div>
+            <div class="profile-field">
+              <label>Matric Number:</label>
+              <p id="profileMatricNo">-</p>
+            </div>
+            <div class="profile-field">
+              <label>Programme:</label>
+              <p id="profileProgramme">-</p>
+            </div>
+            <div class="profile-field">
+              <label>Level:</label>
+              <p id="profileLevel">-</p>
+            </div>
+            <div class="profile-field">
+              <label>Phone:</label>
+              <p id="profilePhone">-</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sections -->
+      
+      <!-- Dashboard Section -->
+      <section id="dashboard" class="content-section active">
+        <div class="dashboard-grid">
+          <div class="card">
+            <h3>📰 News</h3>
+            <div id="newsList" class="news-list">
+              <p class="loading">Loading news...</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>⏰ Timetable</h3>
+            <div id="timetableList" class="timetable-list">
+              <p class="loading">Loading timetable...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Courses Section -->
+      <section id="courses" class="content-section">
+        <div class="card">
+          <h3>📖 Courses</h3>
+          <div id="coursesList" class="courses-list">
+            <p class="loading">Loading courses...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Materials Section -->
+      <section id="materials" class="content-section">
+        <div class="card">
+          <h3>📁 Course Materials</h3>
+          
+          <!-- Filters -->
+          <div class="materials-filters">
+            <div class="filter-group">
+              <label for="semesterSelect">Semester:</label>
+              <select id="semesterSelect" onchange="onSemesterChange()">
+                <option value="">-- Select Semester --</option>
+              </select>
+            </div>
+            
+            <div class="filter-group">
+              <label for="courseSelect">Course:</label>
+              <select id="courseSelect" onchange="onCourseChange()">
+                <option value="">-- Select Course --</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Materials List -->
+          <div id="materialsList" class="materials-list">
+            <p class="loading">Select a course to view materials</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Companion Section -->
+      <section id="ai" class="content-section">
+        <div class="card">
+          <h3>🤖 AI Companion</h3>
+          <p style="text-align: center; color: #6b7280; margin: 20px 0;">
+            AI Companion coming soon... 🚀
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/session.js"></script>
+  <script src="js/student-main.js"></script>
+  
+  <!-- PDF Viewer Modal -->
+  <div id="pdfViewerModal" class="pdf-modal">
+    <div class="pdf-modal-content">
+      <div class="pdf-modal-header">
+        <h3 id="pdfFileName">Document</h3>
+        <button onclick="closePDFViewer()">✕</button>
+      </div>
+      <div class="pdf-modal-body">
+        <div id="pdfLoadingSpinner" class="pdf-loading-spinner active">
+          <div class="spinner"></div>
+          <p>Loading PDF...</p>
+        </div>
+        <div id="pdfPagesContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PPTX Viewer Modal -->
+  <div id="pptxViewerModal" class="pdf-modal">
+    <div class="pdf-modal-content">
+      <div class="pdf-modal-header">
+        <h3 id="pptxFileName">Presentation</h3>
+        <button onclick="closePPTXViewer()">✕</button>
+      </div>
+      <div class="pdf-modal-body">
+        <div id="pptxLoadingSpinner" class="pdf-loading-spinner active">
+          <div class="spinner"></div>
+          <p>Loading PPTX...</p>
+        </div>
+        <iframe id="pptxViewerIframe" style="width:100%;height:80vh;border:none;display:none;"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  
+  <script>
+    // Set up PDF.js worker
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const API_BASE = window.location.origin;
+    let pdfDoc = null;
+
+    function renderAllPages() {
+      const container = document.getElementById('pdfPagesContainer');
+      container.innerHTML = '';
+
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const canvas = document.createElement('canvas');
+        canvas.className = 'pdf-page';
+        canvas.id = `pdf-page-${pageNum}`;
+        canvas.dataset.pageNum = pageNum;
+        container.appendChild(canvas);
+      }
+
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        renderPageToContainer(pageNum);
+      }
+    }
+
+    function renderPageToContainer(pageNum) {
+      pdfDoc.getPage(pageNum).then(function(page) {
+        const canvas = document.getElementById(`pdf-page-${pageNum}`);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const viewport = page.getViewport({scale: 2.5});
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+
+        page.render(renderContext);
+      });
+    }
+
+    async function viewPDFInline(storagePath, filename) {
+      try {
+        console.log('[PDF Viewer] Getting signed URL for:', storagePath);
+        const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            storage_path: storagePath
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          alert(`Error: ${data.message || 'Unable to generate view URL'}`);
+          return;
+        }
+
+        const signedUrl = data.signedURL || data.signed_url;
+        console.log('[PDF Viewer] Got signed URL');
+
+        const modal = document.getElementById('pdfViewerModal');
+        document.getElementById('pdfFileName').textContent = filename;
+        document.getElementById('pdfLoadingSpinner').classList.add('active');
+        modal.style.display = 'flex';
+
+        const loadingTask = pdfjsLib.getDocument({
+          url: signedUrl,
+          withCredentials: false
+        });
+        
+        loadingTask.promise.then(function(pdf) {
+          console.log('[PDF Viewer] PDF loaded');
+          pdfDoc = pdf;
+          renderAllPages();
+          document.getElementById('pdfLoadingSpinner').classList.remove('active');
+        }, function(reason) {
+          console.error('[PDF Viewer] Error loading PDF:', reason);
+          alert(`Failed to load PDF: ${reason.message || reason}`);
+          document.getElementById('pdfLoadingSpinner').classList.remove('active');
+          closePDFViewer();
+        });
+
+      } catch (error) {
+        console.error('[PDF Viewer] Error:', error);
+        alert(`Failed to view PDF: ${error.message}`);
+        closePDFViewer();
+      }
+    }
+
+    function closePDFViewer() {
+      const modal = document.getElementById('pdfViewerModal');
+      modal.style.display = 'none';
+      const container = document.getElementById('pdfPagesContainer');
+      container.innerHTML = '';
+      pdfDoc = null;
+    }
+
+    async function viewPPTXInline(storagePath, filename) {
+      try {
+        const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storage_path: storagePath })
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        if (!data.success) {
+          alert(`Error: ${data.message || 'Unable to generate view URL'}`);
+          return;
+        }
+        const signedUrl = data.signedURL || data.signed_url;
+        const encodedUrl = encodeURIComponent(signedUrl);
+        const embedUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodedUrl}`;
+        
+        const modal = document.getElementById('pptxViewerModal');
+        document.getElementById('pptxFileName').textContent = filename;
+        document.getElementById('pptxLoadingSpinner').classList.add('active');
+        modal.style.display = 'flex';
+        const iframe = document.getElementById('pptxViewerIframe');
+        iframe.style.display = 'none';
+        iframe.src = embedUrl;
+        iframe.onload = function() {
+          document.getElementById('pptxLoadingSpinner').classList.remove('active');
+          iframe.style.display = 'block';
+        };
+      } catch (error) {
+        alert(`Failed to view PPTX: ${error.message}`);
+        document.getElementById('pptxLoadingSpinner').classList.remove('active');
+        closePPTXViewer();
+      }
+    }
+
+    function closePPTXViewer() {
+      const modal = document.getElementById('pptxViewerModal');
+      const iframe = document.getElementById('pptxViewerIframe');
+      if (modal) modal.style.display = 'none';
+      if (iframe) iframe.src = '';
+      document.getElementById('pptxLoadingSpinner').classList.remove('active');
+    }
+
+    async function downloadMaterial(storagePath) {
+      try {
+        const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            storage_path: storagePath
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.success && (data.signedURL || data.signed_url)) {
+          const signedUrl = data.signedURL || data.signed_url;
+          window.open(signedUrl, '_blank');
+        } else {
+          alert('Failed to download: ' + (data.message || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error downloading material:', error);
+        alert(`Failed to download: ${error.message}`);
+      }
+    }
+
+    // Close modals on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closePDFViewer();
+        closePPTXViewer();
+      }
+    });
+
+    // Close on background click
+    const pdfModal = document.getElementById('pdfViewerModal');
+    if (pdfModal) {
+      pdfModal.addEventListener('click', (e) => {
+        if (e.target === pdfModal) {
+          closePDFViewer();
+        }
+      });
+    }
+
+    const pptxModal = document.getElementById('pptxViewerModal');
+    if (pptxModal) {
+      pptxModal.addEventListener('click', (e) => {
+        if (e.target === pptxModal) {
+          closePPTXViewer();
+        }
+      });
+    }
+  </script>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Materials Fetch</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        button { padding: 10px 20px; font-size: 16px; }
+        select { padding: 8px; font-size: 16px; }
+        .status { margin-top: 10px; font-size: 14px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Test Materials Fetch</h1>
+    
+    <div>
+        <label>Programme:</label>
+        <select id="programme">
+            <option>Meteorology</option>
+            <option>Geography</option>
+        </select>
+    </div>
+    
+    <div style="margin-top: 10px;">
+        <label>Level:</label>
+        <select id="level">
+            <option>100</option>
+            <option>200</option>
+            <option>300</option>
+            <option>400</option>
+            <option>500</option>
+        </select>
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <button onclick="fetchCourses()">Fetch Courses</button>
+    </div>
+    
+    <div id="status" class="status"></div>
+    
+    <div style="margin-top: 20px;">
+        <label>Course:</label>
+        <select id="courseSelect">
+            <option value="">-- Select a Course --</option>
+        </select>
+    </div>
+    
+    <pre id="debug"></pre>
+    
+    <script>
+        async function fetchCourses() {
+            const prog = document.getElementById('programme').value;
+            const lvl = document.getElementById('level').value;
+            const statusDiv = document.getElementById('status');
+            const debugDiv = document.getElementById('debug');
+            const courseSelect = document.getElementById('courseSelect');
+            
+            statusDiv.textContent = 'Fetching...';
+            statusDiv.className = 'status';
+            debugDiv.textContent = '';
+            
+            try {
+                console.log('Fetching courses...');
+                const response = await fetch('http://127.0.0.1:8000/api/courses');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Fetched data:', data);
+                
+                // Find matching entry
+                const matched = data.find(entry => 
+                    entry.programme === prog && String(entry.level) === String(lvl)
+                );
+                
+                console.log('Matched entry:', matched);
+                
+                if (matched && matched.courses && matched.courses.length > 0) {
+                    courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+                    matched.courses.forEach(course => {
+                        const option = document.createElement('option');
+                        option.value = course.code;
+                        option.textContent = `${course.code} - ${course.title}`;
+                        courseSelect.appendChild(option);
+                    });
+                    
+                    statusDiv.textContent = `✓ Found ${matched.courses.length} courses for ${prog} ${lvl}`;
+                    statusDiv.className = 'status success';
+                } else {
+                    statusDiv.textContent = `✗ No courses found for ${prog} ${lvl}`;
+                    statusDiv.className = 'status error';
+                    courseSelect.innerHTML = '<option value="">-- No courses available --</option>';
+                }
+                
+                debugDiv.textContent = JSON.stringify(matched, null, 2);
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.textContent = `✗ Error: ${error.message}`;
+                statusDiv.className = 'status error';
+                debugDiv.textContent = error.stack;
+            }
+        }
+        
+        // Fetch on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded, fetching initial courses...');
+            fetchCourses();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dept Library | Admin</title>
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <i class="fas fa-university"></i> <span>Library Admin</span>
+        </div>
+        <nav class="nav-menu">
+            <a href="#" class="nav-item active" data-section="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a>
+            <a href="#" class="nav-item" data-section="news"><i class="fas fa-bullhorn"></i> Announcements</a>
+            <a href="#" class="nav-item" data-section="timetable"><i class="fas fa-calendar-alt"></i> Timetable</a>
+            <a href="#" class="nav-item" data-section="courses"><i class="fas fa-book"></i> Courses</a>
+            <a href="#" class="nav-item" data-section="materials"><i class="fas fa-cloud-upload-alt"></i> Materials</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <h1 id="page-title">Dashboard</h1>
+            <div id="alert-box" class="alert hidden"></div>
+        </header>
+
+        <div id="content-area">
+            <section id="section-news" class="admin-section hidden">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- Post Announcement Container -->
+                    <div class="card">
+                        <h2>Post Announcement</h2>
+                        <form id="form-news">
+                            <div class="grid-2">
+                                <div class="field"><label>Programme</label><select id="n-programme" name="programme">
+                                    <option value="">Select Programme</option>
+                                    <option value="All">All</option>
+                                    <option value="Meteorology">Meteorology</option>
+                                    <option value="Geography">Geography</option>
+                                </select></div>
+                                <div class="field" id="n-level-field"><label>Level</label><select id="n-level" name="level">
+                                    <option value="">Select Level</option>
+                                    <option value="All">All</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="300">300</option>
+                                    <option value="400">400</option>
+                                    <option value="500">500</option>
+                                </select></div>
+                            </div>
+                            <div class="field"><label>Title</label><input type="text" name="title" required></div>
+                            <div class="field"><label>Body</label><textarea name="body" rows="4" required></textarea></div>
+                            <button type="submit" class="btn-primary">Broadcast</button>
+                        </form>
+                    </div>
+
+                    <!-- View News Container -->
+                    <div class="card">
+                        <h2>View News</h2>
+                        <div class="grid-2">
+                            <div class="field"><label>Programme</label><select id="view-news-programme">
+                                <option value="">Select Programme</option>
+                                <option value="All">All</option>
+                                <option value="Meteorology">Meteorology</option>
+                                <option value="Geography">Geography</option>
+                            </select></div>
+                            <div class="field" id="view-news-level-field"><label>Level</label><select id="view-news-level">
+                                <option value="">Select Level</option>
+                                <option value="All">All</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                                <option value="300">300</option>
+                                <option value="400">400</option>
+                                <option value="500">500</option>
+                            </select></div>
+                        </div>
+                        <button id="news-load-btn" class="btn-primary" style="width: 100%; margin: 15px 0;">Load News</button>
+                        <div id="news-list" style="max-height: 400px; overflow-y: auto;">
+                            <p style="text-align: center; color: #999;">Select programme and level, then click Load News</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="section-dashboard" class="admin-section hidden">
+                <div class="card">
+                    <h2>Dashboard</h2>
+                    <div class="grid-2">
+                        <div class="field"><label>Programme</label><select id="dash-programme"><option value="all">All</option><option value="met">Meteorology</option><option value="geo">Geography</option></select></div>
+                        <div class="field"><label>Level</label><select id="dash-level"><option value="all">All</option><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option></select></div>
+                    </div>
+                    <div id="dashboard-summary">
+                        <h3>Recent Uploads</h3>
+                        <div id="dashboard-lists">
+                            <div class="dash-column">
+                                <h4>News</h4>
+                                <ul id="dash-news"></ul>
+                            </div>
+                            <div class="dash-column">
+                                <h4>Timetable</h4>
+                                <ul id="dash-timetable"></ul>
+                            </div>
+                            <div class="dash-column">
+                                <h4>Materials</h4>
+                                <ul id="dash-materials"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="section-materials" class="admin-section hidden">
+                <div class="card">
+                    <h2>Upload Materials</h2>
+                    <form id="form-materials">
+                        <div class="grid-2">
+                            <div class="field"><label>Programme</label><select id="m-programme"><option>Meteorology</option><option>Geography</option></select></div>
+                            <div class="field"><label>Level</label><select id="m-level"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option></select></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Semester</label>
+                                <select id="m-semester">
+                                    <option value="" disabled selected>Select Semester</option>
+                                    <option value="first-semester">First Semester</option>
+                                    <option value="second-semester">Second Semester</option>
+                                </select>
+                            </div>
+                            <div></div>
+                        </div>
+
+                        <div class="field">
+                            <button type="button" id="m-fetch-btn" class="btn-primary" style="width: 100%; margin-bottom: 10px;">Fetch Courses</button>
+                            <small id="m-fetch-status" style="color: #666; display: block; margin-top: 5px;">Ready to fetch courses</small>
+                        </div>
+
+                        <h3>Select Course</h3>
+                        <div class="field"><label>Course</label><select id="m-course-select" required><option value="">-- Select a Course --</option></select></div>
+
+                        <h3>Course Materials</h3>
+                        <div id="m-course-title-display" style="margin-bottom: 20px; padding: 10px; background-color: #f5f5f5; border-radius: 5px; display: none;">
+                            <strong>Selected Course: </strong><span id="m-course-title"></span>
+                        </div>
+
+                        <div id="m-files-container">
+                            <!-- 30 file upload fields with action buttons will be injected here -->
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- PDF Viewer Modal -->
+            <div id="pdfViewerModal" class="pdf-modal">
+                <div class="pdf-modal-content">
+                    <div class="pdf-modal-header">
+                        <h3 id="pdfFileName">Document</h3>
+                        <button onclick="closePDFViewer()">✕</button>
+                    </div>
+                    <div class="pdf-modal-body">
+                        <div id="pdfLoadingSpinner" class="pdf-loading-spinner active">
+                            <div class="spinner"></div>
+                            <p>Loading PDF...</p>
+                        </div>
+                        <iframe id="pdfViewerIframe" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+                        <div id="pdfPagesContainer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <section id="section-timetable" class="admin-section hidden">
+                <div class="card">
+                    <h2>Update Timetable</h2>
+                    <form id="form-timetable">
+                        <div class="grid-2">
+                            <div class="field"><label>Programme</label><select name="programme" id="tt-programme"><option>Meteorology</option><option>Geography</option></select></div>
+                            <div class="field"><label>Level</label><select name="level" id="tt-level"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option></select></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Semester</label>
+                                <select id="tt-semester">
+                                    <option value="first-semester">First Semester</option>
+                                    <option value="second-semester">Second Semester</option>
+                                </select>
+                            </div>
+                            <div></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field"><label>Day</label>
+                                <select id="tt-day-select">
+                                    <option>Monday</option>
+                                    <option>Tuesday</option>
+                                    <option>Wednesday</option>
+                                    <option>Thursday</option>
+                                    <option>Friday</option>
+                                </select>
+                            </div>
+                            <div class="field"><button type="button" id="tt-load-btn" class="btn-primary">Load Timetable</button></div>
+                        </div>
+
+                        <div id="tt-entries">
+                            <!-- Five rows per day will be injected here -->
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field"><button type="submit" class="btn-primary">Upload Timetable</button></div>
+                            <div class="field"><button type="button" id="tt-delete-day-btn" class="btn-danger">Delete Day's Timetable</button></div>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section id="section-courses" class="admin-section hidden">
+                <div class="card">
+                    <h2>Manage Courses</h2>
+                    <form id="form-courses">
+                        <div class="grid-2">
+                            <div class="field"><label>Programme</label><select id="c-programme"><option>Meteorology</option><option>Geography</option></select></div>
+                            <div class="field"><label>Level</label><select id="c-level"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option></select></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Semester</label>
+                                <select id="c-semester">
+                                    <option value="first-semester">First Semester</option>
+                                    <option value="second-semester">Second Semester</option>
+                                </select>
+                            </div>
+                            <div></div>
+                        </div>
+
+                        <div class="field"><label>Course Advisor Name</label><input type="text" id="c-advisor" placeholder="Enter course advisor name"></div>
+
+                        <h3>Courses (Max 15)</h3>
+                        <div id="c-entries">
+                            <!-- Course entries will be injected here -->
+                        </div>
+
+                        <button type="submit" class="btn-primary">Save Courses</button>
+                    </form>
+
+                    <h2 style="margin-top: 40px;">View Courses</h2>
+                    <div style="margin-bottom: 20px;">
+                        <button type="button" id="courses-refresh-btn" class="btn-primary">Refresh List</button>
+                    </div>
+                    <table id="courses-table" class="table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Course Code</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Course Title</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Lecturer 1</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Lecturer 2</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Lecturer 3</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Type</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Units</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Advisor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 20px;">Loading courses...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            </div>
+    </main>
+
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/forms/news.js"></script>
+    <script src="js/forms/timetable.js"></script>
+    <script src="js/forms/courses.js"></script>
+    <script src="js/forms/materials.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/student.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function closePDFViewer() {
+            const modal = document.getElementById('pdfViewerModal');
+            const iframe = document.getElementById('pdfViewerIframe');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            if (iframe) {
+                iframe.src = '';
+            }
+        }
+
+        async function viewPDFAdminSlot(storagePath, filename) {
+            try {
+                console.log('[PDF Viewer] Getting signed URL for:', storagePath);
+                const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storage_path: storagePath })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    alert(`Error: ${data.message || 'Unable to generate view URL'}`);
+                    return;
+                }
+
+                // Handle both signedURL (from backend) and signed_url (legacy)
+                const signedUrl = data.signedURL || data.signed_url;
+                console.log('[PDF Viewer] Got signed URL, loading PDF');
+
+                const modal = document.getElementById('pdfViewerModal');
+                const iframe = document.getElementById('pdfViewerIframe');
+                const spinner = document.getElementById('pdfLoadingSpinner');
+                
+                document.getElementById('pdfFileName').textContent = filename;
+                spinner.classList.add('active');
+                modal.style.display = 'flex';
+
+                // Set up iframe load handlers
+                iframe.onload = () => {
+                    console.log('[PDF Viewer] PDF loaded successfully');
+                    spinner.classList.remove('active');
+                    iframe.style.display = 'block';
+                };
+
+                iframe.onerror = () => {
+                    console.error('[PDF Viewer] Failed to load PDF');
+                    spinner.classList.remove('active');
+                    alert('Failed to load PDF. Please try downloading instead.');
+                };
+
+                // Load PDF via iframe
+                iframe.src = signedUrl;
+                iframe.style.display = 'none';
+
+            } catch (error) {
+                console.error('[PDF Viewer] Error:', error);
+                alert(`Failed to view PDF: ${error.message}`);
+            }
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePDFViewer();
+            }
+        });
+
+        // Close on background click
+        const modal = document.getElementById('pdfViewerModal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closePDFViewer();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

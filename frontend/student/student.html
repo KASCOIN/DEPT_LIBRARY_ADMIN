@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Dashboard</title>
+  <link rel="stylesheet" href="css/student.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .dashboard-container { max-width: 600px; margin: 40px auto; background: #fff; padding: 32px 24px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+    .dashboard-container h2 { text-align: center; margin-bottom: 24px; }
+    .profile-info { margin-bottom: 20px; }
+    .profile-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+    .profile-item strong { color: #374151; }
+    .logout-btn { width: 100%; background: #dc2626; color: #fff; border: none; padding: 12px; border-radius: 5px; font-size: 1.1em; cursor: pointer; margin-top: 20px; }
+    .logout-btn:hover { background: #b91c1c; }
+    .loading { text-align: center; color: #6b7280; }
+    .error-msg { color: #dc2626; text-align: center; padding: 10px; }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <h2>Student Dashboard</h2>
+    <div id="loading" class="loading">Loading profile...</div>
+    <div id="error-msg" class="error-msg"></div>
+    <div id="profile" class="profile-info" style="display: none;">
+      <div class="profile-item">
+        <strong>Full Name:</strong>
+        <span id="fullName"></span>
+      </div>
+      <div class="profile-item">
+        <strong>Email:</strong>
+        <span id="email"></span>
+      </div>
+      <div class="profile-item">
+        <strong>Matric Number:</strong>
+        <span id="matricNo"></span>
+      </div>
+      <div class="profile-item">
+        <strong>Programme:</strong>
+        <span id="programme"></span>
+      </div>
+      <div class="profile-item">
+        <strong>Level:</strong>
+        <span id="level"></span>
+      </div>
+      <div class="profile-item">
+        <strong>Phone:</strong>
+        <span id="phone"></span>
+      </div>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <script src="js/session.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

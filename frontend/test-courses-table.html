@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Courses Display</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>Test Courses Display</h1>
+    <div style="margin-bottom: 20px;">
+        <label>Programme: <select id="prog"><option>Meteorology</option><option>Geography</option></select></label>
+        <label>Level: <select id="level"><option>100</option><option>200</option></select></label>
+        <label>Semester: <select id="sem"><option value="first-semester">First Semester</option><option value="second-semester">Second Semester</option></select></label>
+        <button id="loadBtn">Load Courses</button>
+    </div>
+    
+    <table id="courses-table">
+        <thead>
+            <tr>
+                <th>Course Code</th>
+                <th>Course Title</th>
+                <th>Lecturer 1</th>
+                <th>Lecturer 2</th>
+                <th>Lecturer 3</th>
+                <th>Type</th>
+                <th>Advisor</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="7" style="text-align: center; padding: 20px;">Click Load Courses</td></tr>
+        </tbody>
+    </table>
+    
+    <pre id="debug" style="background-color: #f0f0f0; padding: 10px; margin-top: 20px;"></pre>
+    
+    <script>
+        const debug = document.getElementById('debug');
+        const progSelect = document.getElementById('prog');
+        const levelSelect = document.getElementById('level');
+        const semSelect = document.getElementById('sem');
+        const loadBtn = document.getElementById('loadBtn');
+        const coursesTable = document.getElementById('courses-table');
+        
+        function log(msg) {
+            debug.textContent += msg + '\n';
+            console.log(msg);
+        }
+        
+        loadBtn.addEventListener('click', async () => {
+            debug.textContent = '';
+            log('=== Loading Courses ===');
+            
+            const prog = progSelect.value;
+            const level = levelSelect.value;
+            const sem = semSelect.value;
+            
+            const url = `http://127.0.0.1:8000/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(level)}&semester=${encodeURIComponent(sem)}`;
+            log(`URL: ${url}\n`);
+            
+            try {
+                const response = await fetch(url);
+                log(`Response status: ${response.status}`);
+                
+                const courses = await response.json();
+                log(`Courses received: ${courses.length}`);
+                log(JSON.stringify(courses, null, 2));
+                
+                // Display in table
+                const tbody = coursesTable.querySelector('tbody');
+                tbody.innerHTML = '';
+                
+                if (courses.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="7" style="text-align: center; padding: 20px;">No courses found</td>';
+                    tbody.appendChild(row);
+                } else {
+                    courses.forEach(course => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${course.course_code || ''}</td>
+                            <td>${course.course_title || ''}</td>
+                            <td>${course.lecturer1 || ''}</td>
+                            <td>${course.lecturer2 || ''}</td>
+                            <td>${course.lecturer3 || ''}</td>
+                            <td>Compulsory</td>
+                            <td>${course.advisor || ''}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                log(`ERROR: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

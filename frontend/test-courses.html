@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Courses Upload</title>
+</head>
+<body>
+    <h1>Test Courses Upload</h1>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+        
+        // Test data
+        const testData = {
+            programme: "Meteorology",
+            level: "100",
+            semester: "first-semester",
+            advisor: "Dr. Test",
+            courses: [
+                {code: "COURSE101", title: "Introduction", lecturer1: "Prof A", lecturer2: "", lecturer3: "", type: "compulsory"},
+                {code: "COURSE102", title: "Advanced", lecturer1: "Prof B", lecturer2: "", lecturer3: "", type: "elective"}
+            ]
+        };
+        
+        log("=== Testing Courses Upload ===");
+        log("Sending data:");
+        log(JSON.stringify(testData, null, 2));
+        log("\nAttempting POST to /api/admin/courses...\n");
+        
+        fetch('http://127.0.0.1:8000/api/admin/courses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testData)
+        })
+        .then(response => {
+            log(`Response status: ${response.status} ${response.statusText}`);
+            return response.json();
+        })
+        .then(data => {
+            log("Response data:");
+            log(JSON.stringify(data, null, 2));
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+        });
+    </script>
+</body>
+</html>

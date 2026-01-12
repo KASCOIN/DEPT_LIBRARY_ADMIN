@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Signup</title>
+  <link rel="stylesheet" href="css/student.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f9fa; }
+    .signup-container { max-width: 400px; margin: 40px auto; background: #fff; padding: 32px 24px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+    .signup-container h2 { text-align: center; margin-bottom: 24px; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; margin-bottom: 6px; font-weight: 500; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1em; }
+    .phone-row { display: flex; gap: 8px; }
+    .phone-row select { width: 35%; }
+    .phone-row input { width: 65%; }
+    .submit-btn { width: 100%; background: #2563eb; color: #fff; border: none; padding: 12px; border-radius: 5px; font-size: 1.1em; cursor: pointer; margin-top: 10px; }
+    .submit-btn:hover { background: #1d4ed8; }
+    .login-link { text-align: center; margin-top: 16px; }
+    .error-msg { color: #dc2626; margin-bottom: 10px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="signup-container">
+    <h2>Student Signup</h2>
+    <form id="signup-form">
+      <div class="error-msg" id="error-msg"></div>
+      <div class="form-group">
+        <label for="fullName">Full Name</label>
+        <input type="text" id="fullName" name="fullName" required autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label for="matricNo">Matric Number</label>
+        <input type="text" id="matricNo" name="matricNo" required maxlength="20">
+      </div>
+      <div class="form-group">
+        <label for="programme">Programme</label>
+        <select id="programme" name="programme" required>
+          <option value="">Select Programme</option>
+          <option value="Geography">Geography</option>
+          <option value="Meteorology">Meteorology</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="level">Level</label>
+        <select id="level" name="level" required>
+          <option value="">Select Level</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="300">300</option>
+          <option value="400">400</option>
+          <option value="500">500</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="phone">Phone Number</label>
+        <div class="phone-row">
+          <select id="countryCode" name="countryCode" required>
+            <option value="+234">🇳🇬 +234</option>
+            <option value="+233">🇬🇭 +233</option>
+            <option value="+44">🇬🇧 +44</option>
+            <option value="+1">🇺🇸 +1</option>
+          </select>
+          <input type="tel" id="phone" name="phone" pattern="\d{10}" maxlength="10" placeholder="10-digit number" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password">
+      </div>
+      <button type="submit" class="submit-btn">Sign Up</button>
+    </form>
+    <div class="login-link">
+      Already have an account? <a href="login.html">Login</a>
+    </div>
+  </div>
+  <script src="js/signup.js"></script>
+</body>
+</html>
