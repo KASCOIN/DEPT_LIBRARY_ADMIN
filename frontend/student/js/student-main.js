@@ -1,16 +1,12 @@
 // student-main.js - Student dashboard main functionality
-
-const SUPABASE_URL = "https://yecpwijvbiurqysxazva.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY3B3aWp2Yml1cnF5c3hhenZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTM1NzMsImV4cCI6MjA4MzUyOTU3M30.d9Azks_9e5ITT875tROI84RhbNyWsh1hgap4f9_CGXU";
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Supabase client is initialized in config.js
 
 let currentSession = null;
 
 // Initialize dashboard on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
   // Check authentication
-  currentSession = checkAuth();
+  currentSession = await checkAuth();
   if (!currentSession) {
     return;
   }
@@ -538,39 +534,20 @@ async function onCourseChange() {
 }
 
 /**
- * Download material by getting signed URL from backend
- */
-async function downloadMaterial(storagePath) {
-  try {
-    const response = await fetch('/api/student/materials/view', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ storage_path: storagePath })
-    });
-
-    const data = await response.json();
-    
-    if (data.success && data.signedURL) {
-      // Open in new tab
-      window.open(data.signedURL, '_blank');
-    } else {
-      alert('Error getting download link: ' + (data.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error downloading material:', error);
-    alert('Error downloading material: ' + error.message);
-  }
-}
-
-/**
  * Logout user
  */
 function logout() {
   if (confirm('Are you sure you want to logout?')) {
-    clearSession();
-    window.location.href = 'login.html';
+    // Call logout from session.js
+    if (typeof window.logout === 'function') {
+      window.logout();
+    } else {
+      // Fallback if logout function not available
+      console.warn('Logout function not found, redirecting to login');
+    }
+    setTimeout(() => {
+      window.location.href = 'login.html';
+    }, 500);
   }
 }
 

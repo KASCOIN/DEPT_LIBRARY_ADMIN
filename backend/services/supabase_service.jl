@@ -138,8 +138,10 @@ function upload_file(
         # Build upload URL
         upload_url = "$(config.url)/storage/v1/object/$(config.bucket_name)/$object_path"
         
-        # Prepare headers with Service Role authentication
+        # Prepare headers with Service Role Key
+        # The service_role_key is not a JWT, it should be sent as apikey header
         headers = [
+            "apikey" => config.service_role_key,
             "Authorization" => "Bearer $(config.service_role_key)",
             "Content-Type" => "application/octet-stream"
         ]

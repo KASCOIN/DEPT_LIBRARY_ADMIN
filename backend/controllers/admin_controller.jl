@@ -2,31 +2,66 @@
 module AdminController
 using HTTP
 using JSON3
+using Dates
+using Genie.Requests
 
-# --- Supabase Auth: Secure Admin Middleware ---
+# AdminAuthService is included in server.jl and available in Main
+# We'll reference it as Main.AdminAuthService
+
+# Import auth middleware (suppress redefinition warnings)
+import Logging
+Logging.disable_logging(Logging.Warn)
+include("../services/auth_middleware.jl")
+Logging.disable_logging(Logging.Debug)
+
+# ==================== SUPABASE ADMIN MIDDLEWARE ====================
+
+"""
+    check_supabase_admin_auth()::Tuple{Bool, String, String}
+
+Verify Supabase JWT token and admin role for protected endpoints.
+Returns: (is_admin::Bool, user_id::String, error_message::String)
+"""
+function check_supabase_admin_auth()::Tuple{Bool, String, String}
+    try
+        req = Genie.Requests.request()
+        headers = Dict(req.headers)
+        
+        # Get token from Authorization header
+        auth_header = get(headers, "Authorization", "")
+        if !startswith(auth_header, "Bearer ")
+            return (false, "", "No authorization token provided")
+        end
+        
+        jwt_token = auth_header[8:end]
+        
+        # Verify token
+        valid, user_info = Main.SupabaseAdminAuth.verify_admin_token(jwt_token)
+        
+        if !valid
+            error_msg = get(user_info, "error", "Invalid token")
+            return (false, "", error_msg)
+        end
+        
+        user_id = get(user_info, "user_id", "")
+        
+        # Check admin role
+        is_admin, error_msg = Main.SupabaseAdminAuth.is_admin_role(user_id)
+        
+        if !is_admin
+            return (false, "", error_msg)
+        end
+        
+        return (true, user_id, "")
+    catch e
+        return (false, "", "Authentication error: $(string(e))")
+    end
+end
+
+# --- Legacy Admin Middleware (for backward compatibility) ---
 
 const SUPABASE_URL = "https://yecpwijvbiurqysxazva.supabase.co"
 const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"  # Replace with your real anon key
-
-"""
-    get_user_role(user_id::String) -> String | nothing
-Fetches the user's role from the Supabase profiles table.
-"""
-function get_user_role(user_id::String)
-    url = "$(SUPABASE_URL)/rest/v1/profiles?id=eq.$user_id&select=role"
-    headers = [
-        "apikey" => SUPABASE_ANON_KEY,
-        "Authorization" => "Bearer $SUPABASE_ANON_KEY"
-    ]
-    resp = HTTP.get(url, headers)
-    if resp.status == 200
-        data = JSON3.read(String(resp.body))
-        if !isempty(data) && haskey(data[1], "role")
-            return data[1]["role"]
-        end
-    end
-    return nothing
-end
 
 """
     require_admin() -> HTTP.Response | nothing
@@ -37,6 +72,264 @@ function require_admin()
     # For now, skip admin auth - all POST requests are treated as admin
     # TODO: Implement proper authentication if needed
     return nothing
+end
+
+# ==================== AUTHENTICATION ENDPOINTS ====================
+
+"""
+    admin_verify_role()
+
+Verify admin access using Supabase JWT token.
+Expected header: Authorization: Bearer <jwt_token>
+Returns: {is_admin: Bool, user_id: String, email: String}
+"""
+function admin_verify_role()
+    try
+        req = Genie.Requests.request()
+        headers = Dict(req.headers)
+        
+        # Get token from Authorization header
+        auth_header = get(headers, "Authorization", "")
+        if !startswith(auth_header, "Bearer ")
+            return Genie.Renderer.Json.json(
+                Dict("is_admin" => false, "error" => "No authorization token provided"),
+                status=401,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        jwt_token = auth_header[8:end]
+        
+        # Verify token using Supabase Admin Auth service
+        valid, user_info = Main.SupabaseAdminAuth.verify_admin_token(jwt_token)
+        
+        if !valid
+            error_msg = get(user_info, "error", "Invalid token")
+            return Genie.Renderer.Json.json(
+                Dict("is_admin" => false, "error" => error_msg),
+                status=401,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        user_id = get(user_info, "user_id", "")
+        email = get(user_info, "email", "")
+        
+        # Check if user has admin role
+        is_admin, error_msg = Main.SupabaseAdminAuth.is_admin_role(user_id)
+        
+        if !is_admin
+            return Genie.Renderer.Json.json(
+                Dict(
+                    "is_admin" => false,
+                    "error" => error_msg,
+                    "user_id" => user_id,
+                    "email" => email
+                ),
+                status=403,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        # Admin verified successfully
+        return Genie.Renderer.Json.json(
+            Dict(
+                "is_admin" => true,
+                "user_id" => user_id,
+                "email" => email,
+                "message" => "Admin access granted"
+            ),
+            headers = Dict("Access-Control-Allow-Origin" => "*")
+        )
+    catch e
+        @error "Admin role verification error: $e"
+        return Genie.Renderer.Json.json(
+            Dict("is_admin" => false, "error" => "Verification error"),
+            status=500,
+            headers = Dict("Access-Control-Allow-Origin" => "*")
+        )
+    end
+end
+
+"""
+    admin_login()
+
+Handle admin login request.
+Expected payload: {username: String, password: String}
+Returns: {success: Bool, message: String, token: String}
+"""
+function admin_login()
+    try
+        payload = Genie.Requests.jsonpayload()
+        
+        username = get(payload, "username", "")
+        password = get(payload, "password", "")
+        
+        if isempty(username) || isempty(password)
+            return Genie.Renderer.Json.json(
+                Dict("success" => false, "message" => "Username and password are required"),
+                status=400,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        # Attempt login
+        success, token_or_error = Main.AdminAuthService.login(username, password)
+
+        if !success
+            return Genie.Renderer.Json.json(
+                Dict("success" => false, "message" => token_or_error),
+                status=401,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        # Store token in secure HTTP-only cookie
+        return Genie.Renderer.Json.json(
+            Dict(
+                "success" => true,
+                "message" => "Login successful",
+                "token" => token_or_error
+            ),
+            headers = Dict(
+                "Access-Control-Allow-Origin" => "*",
+                "Set-Cookie" => "admin_token=$token_or_error; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400"
+            )
+        )
+    catch e
+        @error "Login error: $e"
+        return Genie.Renderer.Json.json(
+            Dict("success" => false, "message" => "Login error"),
+            status=500,
+            headers = Dict("Access-Control-Allow-Origin" => "*")
+        )
+    end
+end
+
+"""
+    admin_logout()
+
+Handle admin logout request.
+Clears session token.
+"""
+function admin_logout()
+    try
+        # Get token from cookie or Authorization header
+        req = Genie.Requests.request()
+        headers = Dict(req.headers)
+        
+        token = ""
+        
+        # Try Authorization header first
+        auth_header = get(headers, "Authorization", "")
+        if startswith(auth_header, "Bearer ")
+            token = auth_header[8:end]
+        end
+        
+        if !isempty(token)
+            Main.AdminAuthService.logout(token)
+        end
+        
+        return Genie.Renderer.Json.json(
+            Dict("success" => true, "message" => "Logged out successfully"),
+            headers = Dict(
+                "Access-Control-Allow-Origin" => "*",
+                "Set-Cookie" => "admin_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+            )
+        )
+    catch e
+        return Genie.Renderer.Json.json(
+            Dict("success" => false, "message" => "Logout error"),
+            status=500,
+            headers = Dict("Access-Control-Allow-Origin" => "*")
+        )
+    end
+end
+
+"""
+    admin_verify_session()
+
+Check if current session is valid.
+Returns session status and user info.
+"""
+function admin_verify_session()
+    try
+        req = Genie.Requests.request()
+        headers = Dict(req.headers)
+        
+        # Get token from Authorization header
+        auth_header = get(headers, "Authorization", "")
+        if !startswith(auth_header, "Bearer ")
+            return Genie.Renderer.Json.json(
+                Dict("authenticated" => false, "message" => "No token provided"),
+                status=401,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        token = auth_header[8:end]
+        
+        # Verify session
+        valid, error_msg = Main.AdminAuthService.verify_session(token)
+
+        if !valid
+            return Genie.Renderer.Json.json(
+                Dict("authenticated" => false, "message" => error_msg),
+                status=401,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+        
+        session_info = Main.AdminAuthService.get_session_info(token)
+        
+        if isnothing(session_info)
+            return Genie.Renderer.Json.json(
+                Dict("authenticated" => false, "message" => "Session info not found"),
+                status=401,
+                headers = Dict("Access-Control-Allow-Origin" => "*")
+            )
+        end
+
+        return Genie.Renderer.Json.json(
+            Dict(
+                "authenticated" => true,
+                "username" => session_info["username"],
+                "created_at" => string(session_info["created_at"]),
+                "expires_at" => string(session_info["expires_at"])
+            ),
+            headers = Dict("Access-Control-Allow-Origin" => "*")
+        )
+    catch e
+        error_details = "ERROR in admin_verify_session: $e\nStacktrace: $(stacktrace())"
+        open("/tmp/admin_verify_error.log", "a") do f
+            write(f, error_details * "\n---\n")
+        end
+        return Genie.Renderer.Json.json(
+            Dict("authenticated" => false, "message" => "Verification error: $e"),
+            status=500,
+            headers = Dict("Access-Control-Allow-Origin" => "*")
+        )
+    end
+end
+
+# Middleware to check admin auth for protected routes
+function check_admin_auth()
+    req = Genie.Requests.request()
+    headers = Dict(req.headers)
+    
+    auth_header = get(headers, "Authorization", "")
+    
+    token = if startswith(auth_header, "Bearer ")
+        auth_header[8:end]
+    else
+        ""
+    end
+    
+    valid, _ = Main.AdminAuthService.verify_session(token)
+    
+    if !valid
+        throw(HTTP.ExceptionRequest.HTTPException(401, "Admin authentication required"))
+    end
 end
 
 export delete_course
@@ -84,7 +377,7 @@ function delete_course()
     end
 end
 
-export delete_course, delete_news, post_news, download_material, post_materials, post_timetable, post_courses, update_courses, delete_materials, get_news, get_materials, get_timetable, admin_get_courses, delete_timetable_slot, delete_timetable_day, admin_get_news, admin_get_materials, admin_get_timetable
+export delete_course, delete_news, post_news, download_material, post_materials, post_timetable, post_courses, update_courses, delete_materials, get_news, get_materials, get_timetable, admin_get_courses, delete_timetable_slot, delete_timetable_day, admin_get_news, admin_get_materials, admin_get_timetable, get_active_students
 
 using Genie.Router
 using Genie.Renderer.Json
@@ -93,6 +386,7 @@ using HTTP
 using ..AdminService
 using ..AppConfig
 using ..SupabaseDbService
+using ..ActiveStudentService
 using Dates
 using JSON3
 
@@ -143,11 +437,16 @@ end
 
 # ---------------- News ----------------
 function post_news()
-        # --- Admin Auth Guard ---
-        guard = require_admin()
-        if !isnothing(guard)
-            return guard
+    try
+        # Verify admin JWT token
+        is_admin, user_id, error_msg = check_supabase_admin_auth()
+        if !is_admin
+            return json_cors(
+                Dict("success" => false, "error" => error_msg),
+                403
+            )
         end
+        
     println("POST news called")
     payload = get_payload()
     println("Payload: ", payload)
@@ -181,6 +480,13 @@ function post_news()
     AdminService.save_to_json("news.json", data)
     println("Saved to news.json")
     return json_cors(Dict("success" => true, "message" => "News posted to JSON (DB not available)"))
+    catch e
+        @error "Error in post_news: $e"
+        return json_cors(
+            Dict("success" => false, "error" => "Server error"),
+            500
+        )
+    end
 end
 
 
@@ -304,123 +610,146 @@ end
 
 # ---------------- Materials ----------------
 function post_materials()
-        # --- Admin Auth Guard ---
-        guard = require_admin()
-        if !isnothing(guard)
-            return guard
-        end
-    # Get uploaded file
-    files = Genie.Requests.filespayload()
-    isempty(files) && return json_cors(
-        Dict("success" => false, "message" => "No file uploaded"),
-        400
-    )
-
-    # Extract file from multipart upload
-    file = first(values(files))
-    
-    # Get form fields
-    rawp = Genie.Requests.postpayload()
-    payload = _to_native_dict(rawp)
-    
-    # Extract required metadata
-    course_code = get(payload, "course", "UNKNOWN")
-    programme = get(payload, "programme", "unknown")
-    level = get(payload, "level", "100")
-    semester = get(payload, "semester", nothing)
-    category = get(payload, "category", "general")
-    
-    # Validate required fields
-    if isempty(course_code) || isempty(programme)
-        return json_cors(
-            Dict("success" => false, "message" => "Course code and programme are required"),
-            400
-        )
-    end
-    
-    # SUPABASE STORAGE: Upload file to Supabase Storage
-    success, error_msg, storage_path = AdminService.upload_material_to_supabase(
-        file.data,
-        file.name,
-        course_code,
-        programme,
-        level,
-        semester,
-        category
-    )
-    
-    # Handle upload failure
-    if !success
-        return json_cors(
-            Dict("success" => false, "message" => error_msg),
-            400
-        )
-    end
-    
-    # SUPABASE DATABASE: Insert metadata into materials table
     try
-        url = "$(SupabaseDbService.DB_CONFIG.url)/rest/v1/materials"
-        # Build material data with essential fields
-        material_data = Dict(
-            "storage_path" => storage_path,
-            "material_name" => file.name,
-            "programme" => programme,
-            "level" => level,
-            "course_code" => course_code
+        # Verify admin JWT token
+        is_admin, user_id, error_msg = check_supabase_admin_auth()
+        if !is_admin
+            return json_cors(
+                Dict("success" => false, "error" => error_msg),
+                403
+            )
+        end
+        
+        # Get JSON payload - rawpayload returns bytes, need to convert to string
+        raw_payload = Genie.Requests.rawpayload()
+        if isempty(raw_payload)
+            return json_cors(
+                Dict("success" => false, "message" => "Empty request body"),
+                400
+            )
+        end
+        
+        payload_str = isa(raw_payload, String) ? raw_payload : String(raw_payload)
+        payload = JSON3.read(payload_str, Dict{String,Any})
+        
+        # Extract base64 file data
+        file_base64 = get(payload, "file_base64", "")
+        filename = get(payload, "filename", "")
+        
+        if isempty(file_base64) || isempty(filename)
+            return json_cors(
+                Dict("success" => false, "message" => "File data and filename are required"),
+                400
+            )
+        end
+        
+        # Decode base64 to bytes
+        file_data = base64decode(file_base64)
+        
+        # Extract required metadata
+        course_code = get(payload, "course", "")
+        programme = get(payload, "programme", "")
+        level = get(payload, "level", "100")
+        semester = get(payload, "semester", nothing)
+        category = get(payload, "category", "general")
+        
+        # Validate required fields
+        if isempty(course_code) || isempty(programme)
+            return json_cors(
+                Dict("success" => false, "message" => "Course code and programme are required"),
+                400
+            )
+        end
+        
+        
+        # SUPABASE STORAGE: Upload file to Supabase Storage
+        success, error_msg, storage_path = AdminService.upload_material_to_supabase(
+            file_data,
+            filename,
+            course_code,
+            programme,
+            level,
+            semester,
+            category
         )
         
-        # Add optional fields only if they have values
-        if !isnothing(semester) && !isempty(semester)
-            material_data["semester"] = semester
+        # Handle upload failure
+        if !success
+            return json_cors(
+                Dict("success" => false, "message" => error_msg),
+                400
+            )
         end
         
-        if !isnothing(category) && !isempty(category)
-            material_data["material_type"] = category
-        end
+        # SUPABASE DATABASE: Insert metadata into materials table (disabled for now - too slow)
+        # try
+        #     url = "$(SupabaseDbService.DB_CONFIG.url)/rest/v1/materials"
+        #     # Build material data with essential fields
+        #     material_data = Dict(
+        #         "storage_path" => storage_path,
+        #         "material_name" => filename,
+        #         "programme" => programme,
+        #         "level" => level,
+        #         "course_code" => course_code
+        #     )
+        #     
+        #     # Add optional fields only if they have values
+        #     if !isnothing(semester) && !isempty(semester)
+        #         material_data["semester"] = semester
+        #     end
+        #     
+        #     if !isnothing(category) && !isempty(category)
+        #         material_data["material_type"] = category
+        #     end
+        #     
+        #     payload_json = JSON3.write(material_data)
+        #     cmd = Cmd([
+        #         "curl", "-i", "-s", "-X", "POST",
+        #         "-H", "apikey: $(SupabaseDbService.DB_CONFIG.service_role_key)",
+        #         "-H", "Authorization: Bearer $(SupabaseDbService.DB_CONFIG.service_role_key)",
+        #         "-H", "Content-Type: application/json",
+        #         "-d", payload_json,
+        #         url
+        #     ])
+        #     result = read(cmd, String)
+        #     
+        #     # Extract HTTP status code from result (support both HTTP/1.1 and HTTP/2)
+        #     status_match = match(r"HTTP/[12]\.?[01]?\s+(\d+)", result)
+        #     status_code = status_match !== nothing ? parse(Int, status_match.captures[1]) : 0
+        #     
+        #     if status_code >= 200 && status_code < 300
+        #         println("[MaterialMeta] ✓ Material metadata inserted successfully (HTTP $status_code)")
+        #     else
+        #         # Log the full response for debugging
+        #         println("[MaterialMeta] ⚠ Insert returned HTTP $status_code")
+        #         println("[MaterialMeta] Response: ", result)
+        #         @warn "Material metadata insert returned status $status_code - may not be stored"
+        #     end
+        # catch e
+        #     @warn "Error inserting material metadata to Supabase: $(string(e))"
+        # end
         
-        payload_json = JSON3.write(material_data)
-        cmd = Cmd([
-            "curl", "-i", "-s", "-X", "POST",
-            "-H", "apikey: $(SupabaseDbService.DB_CONFIG.service_role_key)",
-            "-H", "Authorization: Bearer $(SupabaseDbService.DB_CONFIG.service_role_key)",
-            "-H", "Content-Type: application/json",
-            "-d", payload_json,
-            url
-        ])
-        println("[MaterialMeta] Inserting material: $file.name for $course_code")
-        println("[MaterialMeta] PAYLOAD: ", payload_json)
-        result = read(cmd, String)
-        
-        # Extract HTTP status code from result (support both HTTP/1.1 and HTTP/2)
-        status_match = match(r"HTTP/[12]\.?[01]?\s+(\d+)", result)
-        status_code = status_match !== nothing ? parse(Int, status_match.captures[1]) : 0
-        
-        if status_code >= 200 && status_code < 300
-            println("[MaterialMeta] ✓ Material metadata inserted successfully (HTTP $status_code)")
-        else
-            # Log the full response for debugging
-            println("[MaterialMeta] ⚠ Insert returned HTTP $status_code")
-            println("[MaterialMeta] Response: ", result)
-            @warn "Material metadata insert returned status $status_code - may not be stored"
-        end
+        # Build response with Supabase storage path
+        return json_cors(
+            Dict(
+                "success" => true,
+                "message" => "File uploaded successfully to Supabase Storage",
+                "storage_path" => storage_path,
+                "filename" => filename,
+                "material_name" => filename,
+                "course_code" => course_code,
+                "level" => level,
+                "semester" => semester,
+                "programme" => programme
+            )
+        )
     catch e
-        @warn "Error inserting material metadata to Supabase: $(string(e))"
-    end
-    
-    # Build response with Supabase storage path
-    return json_cors(
-        Dict(
-            "success" => true,
-            "message" => "File uploaded successfully to Supabase Storage and metadata queued for insert",
-            "storage_path" => storage_path,
-            "filename" => file.name,
-            "material_name" => file.name,
-            "course_code" => course_code,
-            "level" => level,
-            "semester" => semester,
-            "programme" => programme
+        @error "Error uploading material: $e"
+        return json_cors(
+            Dict("success" => false, "message" => "Error uploading material: $(string(e))"),
+            500
         )
-    )
+    end
 end
 
 function admin_get_materials()
@@ -1261,6 +1590,131 @@ function update_courses()
     catch e
         return json_cors(
             Dict("success" => false, "message" => "Error updating course: $(string(e))"),
+            500
+        )
+    end
+end
+
+"""
+    get_active_students()
+
+Get list of active students seen within the last N minutes.
+Admin-only endpoint protected by JWT validation.
+
+Query Parameters:
+- minutes: Time window in minutes (default 5)
+
+Returns:
+- List of active students with their profile information
+- Last seen timestamp
+"""
+function get_active_students()
+    try
+        # Verify admin authentication
+        headers = Dict(Genie.Requests.request().headers)
+        auth_header = get(headers, "Authorization", "")
+        
+        if !startswith(auth_header, "Bearer ")
+            @warn "Unauthenticated access attempt to active students endpoint"
+            return json_cors(
+                Dict(
+                    "success" => false,
+                    "error" => "Authentication required",
+                    "debug" => "No valid token provided"
+                ),
+                401
+            )
+        end
+        
+        token = auth_header[8:end]
+        valid, user_info = Main.SupabaseAdminAuth.verify_admin_token(token)
+        
+        if !valid
+            error_msg = get(user_info, "error", "Invalid token")
+            @warn "Invalid token for active students endpoint: $error_msg"
+            return json_cors(
+                Dict(
+                    "success" => false,
+                    "error" => error_msg
+                ),
+                401
+            )
+        end
+        
+        # Check if user has admin role
+        user_id = get(user_info, "user_id", "")
+        is_admin, role_error = Main.SupabaseAdminAuth.is_admin_role(user_id)
+        
+        if !is_admin
+            @warn "Non-admin user attempted access to active students endpoint"
+            return json_cors(
+                Dict(
+                    "success" => false,
+                    "error" => role_error
+                ),
+                403
+            )
+        end
+        
+        # Log access
+        email = get(user_info, "email", "unknown")
+        @info "Admin $email accessed active students endpoint"
+        
+        # Get query parameters (optional: custom time window)
+        req = Genie.Requests.request()
+        uri = req.target
+        minutes = 5  # Default
+        
+        # Parse query string for minutes parameter
+        if contains(uri, '?')
+            query_string = split(uri, '?')[2]
+            params_array = split(query_string, '&')
+            for param in params_array
+                if contains(param, "minutes=")
+                    try
+                        minutes = parse(Int, split(param, "=")[2])
+                    catch
+                        # Use default if parsing fails
+                    end
+                end
+            end
+        end
+        
+        # Call service to get active students
+        success, students, error = ActiveStudentService.get_active_students(minutes)
+        
+        if !success
+            return json_cors(
+                Dict(
+                    "success" => false,
+                    "error" => error,
+                    "message" => "Failed to fetch active students"
+                ),
+                500
+            )
+        end
+        
+        # Format students for response
+        formatted_students = map(ActiveStudentService.format_active_student, students)
+        
+        return json_cors(
+            Dict(
+                "success" => true,
+                "count" => length(students),
+                "window_minutes" => minutes,
+                "timestamp" => string(Dates.now(Dates.UTC)),
+                "students" => formatted_students
+            )
+        )
+        
+    catch e
+        @error "Error in get_active_students: $e"
+        return json_cors(
+            Dict(
+                "success" => false,
+                "error" => "Internal server error",
+                "message" => string(e)
+            ),
             500
         )
     end

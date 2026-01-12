@@ -1,7 +1,16 @@
-// login.js
-// Handles student login - validates against backend API with password verification
+/**
+ * login.js
+ * Student login using Supabase Auth
+ * 
+ * Handles:
+ * - Email/password authentication via Supabase
+ * - JWT token retrieval and storage
+ * - User profile loading
+ * - Session initialization
+ * - Redirect to dashboard on success
+ */
 
-const BACKEND_URL = window.location.origin || "http://localhost:8000";
+// Supabase client is initialized in config.js
 
 document.getElementById('login-form').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -20,56 +29,63 @@ document.getElementById('login-form').addEventListener('submit', async function(
   try {
     console.log('Attempting login with email:', email);
     
-    // Call backend login endpoint
-    const response = await fetch(`${BACKEND_URL}/api/student/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password })
+    // Sign in with Supabase Auth
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
     });
 
-    console.log('Login response status:', response.status);
-    const data = await response.json();
-    console.log('Login response:', data);
-
-    if (!response.ok || !data.success) {
-      console.error('Login failed:', data.error);
-      errorMsg.textContent = data.error || 'Invalid email or password.';
+    if (error) {
+      console.error('Login error:', error.message);
+      errorMsg.textContent = error.message || 'Invalid email or password.';
       return;
     }
 
-    if (!data.profile) {
-      errorMsg.textContent = 'No profile found.';
+    if (!data.user || !data.session) {
+      errorMsg.textContent = 'Login failed: No session returned.';
       return;
     }
 
-    console.log('✓ Login successful! User:', data.profile);
+    console.log('✓ Login successful! User:', data.user.email);
     
-    // Save session
+    // Fetch additional profile data
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError) {
+      console.warn('Profile fetch warning:', profileError);
+    }
+
+    // Store session (Supabase handles JWT internally)
     const sessionData = {
-      user_id: data.profile.id,
-      email: data.profile.email,
-      full_name: data.profile.full_name,
-      matric_no: data.profile.matric_no,
-      programme: data.profile.programme,
-      level: data.profile.level,
-      phone: data.profile.phone,
-      role: data.profile.role,
-      login_time: new Date().toISOString()
+      user_id: data.user.id,
+      email: data.user.email,
+      full_name: profile?.full_name || '',
+      matric_no: profile?.matric_no || '',
+      programme: profile?.programme || '',
+      level: profile?.level || '',
+      phone: profile?.phone || '',
+      role: profile?.role || 'student',
+      login_time: new Date().toISOString(),
+      access_token: data.session.access_token // Store JWT token
     };
     
+    // Keep token in localStorage temporarily (in production, use httpOnly cookies)
     localStorage.setItem('student_session', JSON.stringify(sessionData));
     
-    errorMsg.style.color = '#16a34a'; // Green
+    errorMsg.style.color = '#16a34a'; // Green for success
     errorMsg.textContent = '✓ Login successful! Redirecting...';
     
+    // Redirect to dashboard
     setTimeout(() => {
       window.location.href = 'student-main.html';
-    }, 1500);
-
+    }, 1000);
+    
   } catch (e) {
-    console.error('Login error:', e);
-    errorMsg.textContent = 'Error: ' + e.message;
+    console.error('Unexpected login error:', e);
+    errorMsg.textContent = 'Error: ' + (e.message || 'Unknown error');
   }
 });

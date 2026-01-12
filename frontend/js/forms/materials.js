@@ -2,11 +2,8 @@
  * Material Upload Logic
  */
 
-// Initialize Supabase client for fallback queries
-const SUPABASE_URL = "https://yecpwijvbiurqysxazva.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY3B3aWp2Yml1cnF5c3hhenZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTM1NzMsImV4cCI6MjA4MzUyOTU3M30.d9Azks_9e5ITT875tROI84RhbNyWsh1hgap4f9_CGXU";
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Use SUPABASE_URL and SUPABASE_ANON_KEY from admin-config.js (already loaded)
+// Note: supabaseClient is already created in admin-config.js
 
 function initMaterialsForm() {
     const form = document.getElementById('form-materials');
@@ -525,18 +522,24 @@ function attachAdminSlotButtonHandlers() {
                 console.log(`   Parameters: programme='${programme}', level='${level}', semester='${semester}', course='${selectedCourse}'`);
                 
                 try {
-                    const formData = new FormData();
-                    formData.append('file', fileInput.files[0]);
-                    formData.append('programme', programme);
-                    formData.append('level', level);
-                    formData.append('course', selectedCourse);
-                    formData.append('title', filename);
-                    if (semester) formData.append('semester', semester);
+                    // Convert file to base64
+                    const fileBuffer = await fileInput.files[0].arrayBuffer();
+                    const fileBase64 = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+                    
+                    const uploadData = {
+                        file_base64: fileBase64,
+                        filename: fileInput.files[0].name,
+                        programme: programme,
+                        level: level,
+                        course: selectedCourse,
+                        title: filename,
+                        semester: semester || null
+                    };
                     
                     uploadBtn.disabled = true;
                     uploadBtn.textContent = '⏳ Uploading...';
                     
-                    const result = await API.post('/api/admin/materials', formData, true);
+                    const result = await API.post('/api/admin/materials', uploadData, false);
                     if (result.success) {
                         UI.notify(`Material ${i} uploaded successfully`);
                         fileInput.value = '';

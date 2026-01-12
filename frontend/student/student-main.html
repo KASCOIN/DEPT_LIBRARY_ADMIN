@@ -6,6 +6,7 @@
   <title>Student Portal</title>
   <link rel="stylesheet" href="css/student-dashboard.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
 </head>
 <body>
   <div class="dashboard-layout">
@@ -194,6 +195,26 @@
     </div>
   </div>
 
+  <!-- Inactivity Warning Modal -->
+  <div id="inactivityWarningModal" class="inactivity-modal hidden">
+    <div class="inactivity-modal-content">
+      <div class="inactivity-modal-header">
+        <h2>⏱️ Session Timeout Warning</h2>
+      </div>
+      <div class="inactivity-modal-body">
+        <p>Your session will expire due to inactivity in:</p>
+        <div class="inactivity-countdown">
+          <span id="inactivityCountdown">60</span> seconds
+        </div>
+        <p class="inactivity-info">Click "Continue Working" to stay logged in.</p>
+      </div>
+      <div class="inactivity-modal-footer">
+        <button onclick="continueWorking()" class="inactivity-btn-continue">✓ Continue Working</button>
+        <button onclick="manualLogout()" class="inactivity-btn-logout">🚪 Logout Now</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PDF.js Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   
@@ -246,18 +267,15 @@
     async function viewPDFInline(storagePath, filename) {
       try {
         console.log('[PDF Viewer] Getting signed URL for:', storagePath);
-        const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+        const response = await fetchWithAuth('/api/student/materials/view', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             storage_path: storagePath
           })
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response || !response.ok) {
+          throw new Error(`HTTP error! status: ${response ? response.status : 'no response'}`);
         }
 
         const data = await response.json();
@@ -309,12 +327,13 @@
 
     async function viewPPTXInline(storagePath, filename) {
       try {
-        const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+        const response = await fetchWithAuth('/api/student/materials/view', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storage_path: storagePath })
         });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response || !response.ok) {
+          throw new Error(`HTTP error! status: ${response ? response.status : 'no response'}`);
+        }
         const data = await response.json();
         if (!data.success) {
           alert(`Error: ${data.message || 'Unable to generate view URL'}`);
@@ -352,18 +371,15 @@
 
     async function downloadMaterial(storagePath) {
       try {
-        const response = await fetch(`${API_BASE}/api/student/materials/view`, {
+        const response = await fetchWithAuth('/api/student/materials/view', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             storage_path: storagePath
           })
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response || !response.ok) {
+          throw new Error(`HTTP error! status: ${response ? response.status : 'no response'}`);
         }
 
         const data = await response.json();

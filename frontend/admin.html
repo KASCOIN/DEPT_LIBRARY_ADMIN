@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-
     <aside class="sidebar">
         <div class="sidebar-brand">
             <i class="fas fa-university"></i> <span>Library Admin</span>
@@ -27,6 +26,12 @@
         <header class="top-bar">
             <h1 id="page-title">Dashboard</h1>
             <div id="alert-box" class="alert hidden"></div>
+            <div style="display: flex; align-items: center; gap: 15px; margin-left: auto;">
+                <span id="user-display" style="color: #666; font-size: 14px;">
+                    Logged in as: <strong id="username-display">Admin</strong>
+                </span>
+                <button id="logout-btn" class="btn-logout" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Logout</button>
+            </div>
         </header>
 
         <div id="content-area">
@@ -87,28 +92,53 @@
                 </div>
             </section>
 
-            <section id="section-dashboard" class="admin-section hidden">
-                <div class="card">
-                    <h2>Dashboard</h2>
-                    <div class="grid-2">
-                        <div class="field"><label>Programme</label><select id="dash-programme"><option value="all">All</option><option value="met">Meteorology</option><option value="geo">Geography</option></select></div>
-                        <div class="field"><label>Level</label><select id="dash-level"><option value="all">All</option><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option></select></div>
+            <section id="section-dashboard" class="admin-section">
+                <!-- Time Display at Top -->
+                <div class="card" style="margin-bottom: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; padding: 30px;">
+                        <div>
+                            <p style="margin: 0; opacity: 0.9; font-size: 14px; letter-spacing: 1px;">CURRENT TIME</p>
+                            <div id="current-time" style="font-size: 64px; font-weight: bold; margin-top: 10px; font-family: 'Courier New', monospace;">
+                                --:--:--
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="margin: 0; opacity: 0.9; font-size: 14px; letter-spacing: 1px;">TODAY</p>
+                            <div id="current-date" style="font-size: 24px; font-weight: 500; margin-top: 10px;">
+                                --/--/----
+                            </div>
+                        </div>
                     </div>
-                    <div id="dashboard-summary">
-                        <h3>Recent Uploads</h3>
-                        <div id="dashboard-lists">
-                            <div class="dash-column">
-                                <h4>News</h4>
-                                <ul id="dash-news"></ul>
+                </div>
+
+                <!-- Calendar and Students Online -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
+                    <!-- Calendar Card -->
+                    <div class="card">
+                        <h2 style="margin-top: 0; font-size: 20px; margin-bottom: 20px;">📅 Calendar</h2>
+                        <div id="calendar-container">
+                            <div style="text-align: center; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                                <button id="prev-month" style="padding: 8px 12px; background-color: #f0f0f0; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">←</button>
+                                <span id="month-year" style="font-weight: bold; font-size: 16px; flex: 1;">January 2026</span>
+                                <button id="next-month" style="padding: 8px 12px; background-color: #f0f0f0; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">→</button>
                             </div>
-                            <div class="dash-column">
-                                <h4>Timetable</h4>
-                                <ul id="dash-timetable"></ul>
+                            <div id="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 13px;">
+                                <!-- Calendar will be generated here -->
                             </div>
-                            <div class="dash-column">
-                                <h4>Materials</h4>
-                                <ul id="dash-materials"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Students Online Card -->
+                    <div class="card">
+                        <h2 style="margin-top: 0; font-size: 20px; margin-bottom: 20px;">👥 Students Online</h2>
+                        <div style="text-align: center; padding: 20px 0;">
+                            <div style="font-size: 48px; font-weight: bold; color: #4CAF50;">
+                                <span id="online-count">0</span>
                             </div>
+                            <p style="color: #666; margin: 10px 0 0 0; font-size: 14px;">Currently online</p>
+                        </div>
+                        <div id="online-students-list" style="max-height: 280px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 15px;">
+                            <p style="text-align: center; color: #999; padding: 20px 0;">No students online</p>
                         </div>
                     </div>
                 </div>
@@ -125,11 +155,12 @@
 
                         <div class="grid-2">
                             <div class="field">
-                                <label>Semester</label>
+                                <label>Semester (Optional)</label>
                                 <select id="m-semester">
-                                    <option value="" disabled selected>Select Semester</option>
-                                    <option value="first-semester">First Semester</option>
-                                    <option value="second-semester">Second Semester</option>
+                                    <option value="">-- All Semesters --</option>
+                                    <option value="first">First Semester</option>
+                                    <option value="second">Second Semester</option>
+                                    <option value="special">Special Semester</option>
                                 </select>
                             </div>
                             <div></div>
@@ -151,7 +182,33 @@
                         <div id="m-files-container">
                             <!-- 30 file upload fields with action buttons will be injected here -->
                         </div>
+
+                        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 20px;">Upload All Materials</button>
                     </form>
+
+                    <h2 style="margin-top: 40px;">Manage Materials</h2>
+                    <div style="margin-bottom: 20px;">
+                        <button type="button" id="materials-refresh-btn" class="btn-primary">Refresh List</button>
+                    </div>
+                    <table id="materials-table" class="table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Filename</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Course Code</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Department</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Level</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Semester</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Size</th>
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Uploaded</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 20px;">Loading materials...</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
@@ -278,13 +335,17 @@
     </main>
 
     <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/ui.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/admin-config.js"></script>
+    <script src="js/admin-auth.js"></script>
     <script src="js/forms/news.js"></script>
     <script src="js/forms/timetable.js"></script>
     <script src="js/forms/courses.js"></script>
     <script src="js/forms/materials.js"></script>
     <script src="js/dashboard.js"></script>
+    <script src="js/active-students.js"></script>
     <script src="js/admin.js"></script>
     <script src="js/student.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>

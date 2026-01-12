@@ -10,8 +10,8 @@ if isfile(dotenv_path)
     open(dotenv_path) do f
         for line in readlines(f)
             line = strip(line)
-            # Skip comments and empty lines
-            if !startswith(line, "#") && !isempty(line) && !startswith(line, "export")
+            # Skip comments, shebangs, and empty lines
+            if !startswith(line, "#") && !startswith(line, "#!/") && !isempty(line)
                 # Remove 'export ' prefix if present
                 line = replace(line, r"^export\s+" => "")
                 if contains(line, "=")
@@ -33,6 +33,9 @@ include("models.jl")
 include("services/supabase_service.jl")
 include("services/supabase_db_service.jl")
 include("services/auth_middleware.jl")
+include("services/admin_auth_service.jl")
+include("services/supabase_admin_auth.jl")
+include("services/active_student_service.jl")
 include("services/admin_service.jl")
 include("controllers/admin_controller.jl")
 include("controllers/student_controller.jl")
@@ -62,4 +65,14 @@ Genie.config.cors_headers = Dict(
 
 Genie.config.run_as_server = true
 Genie.config.server_host = "0.0.0.0"
-up(8000)
+
+println("\n[✓] Web Server starting at http://0.0.0.0:8000 - press Ctrl/Cmd+C to stop the server.")
+println("[✓] Open admin panel: http://127.0.0.1:8000/admin.html\n")
+
+# Start the server and keep it running
+try
+    up(8000; async=false)
+catch e
+    @error "Server error: $e"
+    rethrow()
+end

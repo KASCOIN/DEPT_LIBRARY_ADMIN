@@ -1,0 +1,107 @@
+
+[317055] signal (15): Terminated
+in expression starting at /home/mazimum/Documents/Julia/dept-library-admin/backend/server.jl:72
+epoll_wait at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv__io_poll at /workspace/srcdir/libuv/src/unix/epoll.c:236
+uv_run at /workspace/srcdir/libuv/src/unix/core.c:400
+ijl_task_get_next at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/partr.c:390
+poptask at ./task.jl:974
+wait at ./task.jl:983
+#wait#621 at ./condition.jl:130
+wait at ./condition.jl:125 [inlined]
+_trywait at ./asyncevent.jl:138
+wait at ./asyncevent.jl:155 [inlined]
+sleep at ./asyncevent.jl:240 [inlined]
+#up#2 at /home/mazimum/.julia/packages/Genie/G0LAe/src/Server.jl:158
+up at /home/mazimum/.julia/packages/Genie/G0LAe/src/Server.jl:71 [inlined]
+up at /home/mazimum/.julia/packages/Genie/G0LAe/src/Server.jl:71
+unknown function (ip: 0x7448ac315ee9)
+_jl_invoke at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2758 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2940
+jl_apply at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/julia.h:1880 [inlined]
+do_call at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/interpreter.c:126
+eval_value at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/interpreter.c:226
+eval_stmt_value at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/interpreter.c:177 [inlined]
+eval_body at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/interpreter.c:624
+eval_body at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/interpreter.c:533
+jl_interpret_toplevel_thunk at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/interpreter.c:762
+jl_toplevel_eval_flex at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/toplevel.c:912
+jl_toplevel_eval_flex at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/toplevel.c:856
+ijl_toplevel_eval_in at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/toplevel.c:971
+eval at ./boot.jl:370 [inlined]
+include_string at ./loading.jl:1903
+_jl_invoke at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2758 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2940
+_include at ./loading.jl:1963
+include at ./Base.jl:457
+jfptr_include_40628.clone_1 at /opt/julia-1.9/lib/julia/sys.so (unknown line)
+_jl_invoke at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2758 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2940
+exec_options at ./client.jl:307
+_start at ./client.jl:522
+jfptr__start_49509.clone_1 at /opt/julia-1.9/lib/julia/sys.so (unknown line)
+_jl_invoke at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2758 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/gf.c:2940
+jl_apply at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/julia.h:1880 [inlined]
+true_main at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/jlapi.c:573
+jl_repl_entrypoint at /cache/build/builder-amdci4-4/julialang/julia-release-1-dot-9/src/jlapi.c:717
+main at julia (unknown line)
+unknown function (ip: 0x7448b262a1c9)
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8)
+unknown function (ip: (nil))
+Allocations: 13003616 (Pool: 12989956; Big: 13660); GC: 19
+[ Info: Loaded environment variables from /home/mazimum/Documents/Julia/dept-library-admin/backend/config/../../.env
+[ Info: ✓ Supabase Database configured: https://yecpwijvbiurqysxazva.supabase.co
+[DEBUG] Supabase DB_CONFIG: Main.SupabaseDbService.SupabaseDBConfig("https://yecpwijvbiurqysxazva.supabase.co", "sb_secret_N28FYLCuHGIYDadOOtrSEw_A7qG8smk", "")
+[ Info: Web Server starting at http://0.0.0.0:8000 - press Ctrl/Cmd+C to stop the server. 
+[ Info: Listening on: 0.0.0.0:8000, thread id: 1
+[ Info: POST /api/admin/auth/login 200
+[ Info: POST /api/admin/auth/login 200
+[ Info: GET / 200
+[ Info: POST /api/admin/auth/login 200
+┌ Error: GET /api/admin/auth/verify 500
+└ @ Genie.Router ~/.julia/packages/Genie/G0LAe/src/Router.jl:203
+┌ Warning: temp cleanup
+│   exception =
+│    schedule: Task not runnable
+│    Stacktrace:
+│      [1] error(s::String)
+│        @ Base ./error.jl:35
+│      [2] enq_work(t::Task)
+│        @ Base ./task.jl:769
+│      [3] yield
+│        @ ./task.jl:882 [inlined]
+│      [4] yield
+│        @ ./task.jl:880 [inlined]
+│      [5] Channel{Tuple{String, Vector{String}, Vector{String}}}(func::Base.Filesystem.var"#28#31"{String}, size::Int64; taskref::Nothing, spawn::Bool, threadpool::Nothing)
+│        @ Base ./channels.jl:154
+│      [6] Channel (repeats 2 times)
+│        @ ./channels.jl:140 [inlined]
+│      [7] #walkdir#27
+│        @ ./file.jl:969 [inlined]
+│      [8] walkdir
+│        @ ./file.jl:930 [inlined]
+│      [9] prepare_for_deletion(path::String)
+│        @ Base.Filesystem ./file.jl:509
+│     [10] temp_cleanup_purge(; force::Bool)
+│        @ Base.Filesystem ./file.jl:544
+│     [11] temp_cleanup_purge
+│        @ ./file.jl:537 [inlined]
+│     [12] (::Base.var"#931#932")()
+│        @ Base ./initdefs.jl:354
+│     [13] _atexit(exitcode::Int32)
+│        @ Base ./initdefs.jl:416
+└ @ Base.Filesystem file.jl:549
+[✓] Loaded environment variables from .env
+[✓] Admin routes loaded
+[✓] Student routes loaded
+[✓] Supabase Storage configured and enabled
+[ℹ] Bucket: materials
+
+[✓] Web Server starting at http://0.0.0.0:8000 - press Ctrl/Cmd+C to stop the server.
+[✓] Open admin panel: http://127.0.0.1:8000/admin.html
+
+
+ERROR in admin_verify_session: MethodError(Main.AdminController.AdminAuthService.verify_session, ("45ec1002-b9bc-443d-b2a4-da49e8267a89",), 0x00000000000083a9)
+Base.StackTraces.StackFrame[admin_verify_session() at admin_controller.jl:183, run_route(r::Genie.Router.Route) at Router.jl:547, route_request(req::HTTP.Messages.Request, res::HTTP.Messages.Response; stream::HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}) at Router.jl:172, route_request at Router.jl:147 [inlined], handle_request(req::HTTP.Messages.Request, res::HTTP.Messages.Response; stream::HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}) at Server.jl:321, handle_request at Server.jl:313 [inlined], (::Genie.Server.var"#28#29"{HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}, HTTP.Messages.Request, HTTP.Messages.Response})() at macros.jl:123, #invokelatest#2 at essentials.jl:819 [inlined], invokelatest at essentials.jl:816 [inlined], #153 at remotecall.jl:425 [inlined], run_work_thunk(thunk::Distributed.var"#153#154"{Genie.Server.var"#28#29"{HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}, HTTP.Messages.Request, HTTP.Messages.Response}, Tuple{}, Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}}, print_error::Bool) at process_messages.jl:70, #remotecall_fetch#158 at remotecall.jl:450 [inlined], remotecall_fetch at remotecall.jl:449 [inlined], #remotecall_fetch#162 at remotecall.jl:492 [inlined], remotecall_fetch at remotecall.jl:492 [inlined], setup_http_listener(req::HTTP.Messages.Request, res::HTTP.Messages.Response; stream::HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}) at Server.jl:365, setup_http_listener at Server.jl:363 [inlined], setup_http_listener at Server.jl:363 [inlined], (::Genie.Server.var"#25#26"{typeof(Genie.Server.setup_http_listener)})(stream::HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}) at Server.jl:334, setup_http_streamer(stream::HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}) at Server.jl:354, (::Genie.Server.var"#6#12")(stream::HTTP.Streams.Stream{HTTP.Messages.Request, HTTP.Connections.Connection{Sockets.TCPSocket}}) at Server.jl:125, #invokelatest#2 at essentials.jl:819 [inlined], invokelatest at essentials.jl:816 [inlined], handle_connection(f::Function, c::HTTP.Connections.Connection{Sockets.TCPSocket}, listener::HTTP.Servers.Listener{Nothing, Sockets.TCPServer}, readtimeout::Int64, access_log::Nothing, verbose::Bool) at Servers.jl:469, macro expansion at Servers.jl:401 [inlined], (::HTTP.Servers.var"#16#17"{Genie.Server.var"#6#12", HTTP.Servers.Listener{Nothing, Sockets.TCPServer}, Set{HTTP.Connections.Connection}, Int64, Nothing, ReentrantLock, Bool, Base.Semaphore, HTTP.Connections.Connection{Sockets.TCPSocket}})() at task.jl:514]

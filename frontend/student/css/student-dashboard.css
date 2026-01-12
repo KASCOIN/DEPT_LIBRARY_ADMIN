@@ -721,3 +721,135 @@ body {
   display: none;
   background: #fff;
 }
+/* ============================================================================
+   INACTIVITY TIMEOUT MODAL STYLES
+   ============================================================================ */
+
+.inactivity-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.inactivity-modal.hidden {
+  display: none;
+}
+
+.inactivity-modal-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 450px;
+  width: 90%;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.inactivity-modal-header {
+  background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%);
+  color: white;
+  padding: 24px;
+  border-radius: 12px 12px 0 0;
+  text-align: center;
+}
+
+.inactivity-modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.inactivity-modal-body {
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.inactivity-modal-body p {
+  margin: 12px 0;
+  color: #4b5563;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.inactivity-countdown {
+  font-size: 48px;
+  font-weight: 700;
+  color: #dc2626;
+  margin: 24px 0;
+  font-family: 'Courier New', monospace;
+}
+
+.inactivity-countdown span {
+  display: inline-block;
+  min-width: 100px;
+}
+
+.inactivity-info {
+  font-size: 13px;
+  color: #6b7280 !important;
+  margin-top: 20px;
+}
+
+.inactivity-modal-footer {
+  padding: 0 24px 24px 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.inactivity-btn-continue,
+.inactivity-btn-logout {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  max-width: 180px;
+}
+
+.inactivity-btn-continue {
+  background: #10b981;
+  color: white;
+}
+
+.inactivity-btn-continue:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.inactivity-btn-logout {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.inactivity-btn-logout:hover {
+  background: #d1d5db;
+  transform: translateY(-2px);
+}
+
+.inactivity-btn-continue:active,
+.inactivity-btn-logout:active {
+  transform: translateY(0);
+}

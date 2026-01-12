@@ -1,22 +1,17 @@
-// signup.js
-// Handles student signup - saves directly to profiles table with password hashing
+/**
+ * signup.js
+ * Student signup using Supabase Auth
+ * 
+ * Handles:
+ * - New user registration with Supabase Auth
+ * - Profile creation in profiles table
+ * - Password hashing by Supabase (bcrypt)
+ * - Email validation
+ * - Duplicate user prevention
+ * - Redirect to login on success
+ */
 
-// TODO: Replace SUPABASE_ANON_KEY with your actual anon key from Supabase dashboard
-const SUPABASE_URL = "https://yecpwijvbiurqysxazva.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY3B3aWp2Yml1cnF5c3hhenZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTM1NzMsImV4cCI6MjA4MzUyOTU3M30.d9Azks_9e5ITT875tROI84RhbNyWsh1hgap4f9_CGXU";
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Simple password hashing using SHA256 (for frontend demo)
-// In production, password hashing should be done on backend!
-async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
+// Supabase client is initialized in config.js
 
 document.getElementById('signup-form').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -46,10 +41,16 @@ document.getElementById('signup-form').addEventListener('submit', async function
     return;
   }
 
+  // Validate password strength
+  if (password.length < 6) {
+    errorMsg.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
+
   try {
     const fullPhone = countryCode + phone;
 
-    // Check if email, matric_no, or phone already exists
+    // Check if matric_no or phone already exists
     console.log('Checking if user already exists...');
     
     const { data: existing, error: checkError } = await supabaseClient
@@ -65,45 +66,69 @@ document.getElementById('signup-form').addEventListener('submit', async function
     }
 
     if (existing && existing.length > 0) {
-      console.log('User already exists:', existing[0]);
-      errorMsg.textContent = 'User already exists! Email, Matric Number, or Phone Number is already registered.';
+      const existingUser = existing[0];
+      if (existingUser.email === email) {
+        errorMsg.textContent = 'Email already registered!';
+      } else if (existingUser.matric_no === matricNo) {
+        errorMsg.textContent = 'Matric number already registered!';
+      } else if (existingUser.phone === fullPhone) {
+        errorMsg.textContent = 'Phone number already registered!';
+      } else {
+        errorMsg.textContent = 'User already exists!';
+      }
       return;
     }
 
-    // Generate a simple ID (UUID-like)
-    const userId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
+    console.log('Creating new user account...');
+    
+    // Sign up with Supabase Auth - password is hashed by Supabase (bcrypt)
+    const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName
+        }
+      }
     });
 
-    // Hash password using SHA256 (frontend only for demo)
-    // TODO: Backend should use bcrypt for proper password hashing
-    const passwordHash = await hashPassword(password);
+    if (authError) {
+      console.error('Auth signup error:', authError);
+      errorMsg.textContent = 'Signup error: ' + authError.message;
+      return;
+    }
 
-    // Insert new profile
-    console.log('Creating new profile...');
-    const { data: newProfile, error: insertError } = await supabaseClient
+    if (!authData.user) {
+      errorMsg.textContent = 'Signup failed: No user returned.';
+      return;
+    }
+
+    console.log('✓ Auth user created:', authData.user.id);
+    
+    // Create profile record linked to auth.users
+    console.log('Creating profile record...');
+    const { data: profileData, error: profileError } = await supabaseClient
       .from('profiles')
       .insert({
-        id: userId,
+        id: authData.user.id,
         email,
         full_name: fullName,
         matric_no: matricNo,
         programme,
         level,
         phone: fullPhone,
-        password_hash: passwordHash,
         role: 'student'
       })
       .select();
 
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      errorMsg.textContent = 'Error creating profile: ' + insertError.message;
+    if (profileError) {
+      console.error('Profile insert error:', profileError);
+      errorMsg.textContent = 'Error creating profile: ' + profileError.message;
+      // Note: Auth user was created, but profile failed - may need manual cleanup
       return;
     }
 
-    console.log('✓ Profile created successfully:', newProfile);
+    console.log('✓ Profile created successfully:', profileData);
     
     // Show success message
     errorMsg.style.color = '#16a34a'; // Green
@@ -116,6 +141,6 @@ document.getElementById('signup-form').addEventListener('submit', async function
 
   } catch (e) {
     console.error('Signup error:', e);
-    errorMsg.textContent = 'Error: ' + e.message;
+    errorMsg.textContent = 'Error: ' + (e.message || 'Unknown error');
   }
 });
