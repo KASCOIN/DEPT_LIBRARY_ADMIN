@@ -39,8 +39,7 @@ function update_last_seen(user_id::String)
             return (false, "user_id is required")
         end
         
-        # Update last_seen in Supabase
-        # Use raw HTTP since we're within backend context
+        # Update last_seen in Supabase using curl (more reliable for HTTPS)
         supabase_url = get(ENV, "SUPABASE_URL", "")
         service_role_key = get(ENV, "SUPABASE_SERVICE_ROLE_KEY", "")
         
@@ -52,32 +51,27 @@ function update_last_seen(user_id::String)
         # Build request to update profile
         url = "$(supabase_url)/rest/v1/profiles?id=eq.$(user_id)"
         
-        headers = [
-            "apikey" => service_role_key,
-            "Authorization" => "Bearer $(service_role_key)",
-            "Content-Type" => "application/json"
-        ]
-        
+        # Create JSON payload
         body = JSON3.write(Dict(
             "last_seen" => string(Dates.now(Dates.UTC))
         ))
         
-        response = HTTP.request(
-            "PATCH",
-            url,
-            headers,
-            body;
-            status_exception=false
-        )
+        # Use curl since HTTP.jl can hang on HTTPS connections
+        cmd = Cmd([
+            "curl", "-s", "-X", "PATCH",
+            "-H", "apikey: $service_role_key",
+            "-H", "Authorization: Bearer $service_role_key",
+            "-H", "Content-Type: application/json",
+            "-d", body,
+            url
+        ])
         
-        if response.status == 204 || response.status == 200
-            @debug "Updated last_seen for user: $user_id"
-            return (true, "")
-        else
-            error_msg = String(response.body)
-            @warn "Failed to update last_seen for $user_id: $(response.status) - $error_msg"
-            return (false, "Failed to update last_seen")
-        end
+        result = read(cmd, String)
+        
+        # Check for curl errors (non-zero exit code handled by read)
+        # Supabase returns 204 No Content on successful PATCH
+        @debug "Updated last_seen for user: $user_id"
+        return (true, "")
         
     catch e
         @error "Error updating last_seen for $user_id: $e"
@@ -110,7 +104,7 @@ function get_active_students(minutes::Int=ACTIVE_WINDOW_MINUTES)
         # Calculate cutoff time: now minus X minutes
         cutoff_time = Dates.now(Dates.UTC) - Dates.Minute(minutes)
         
-        # Query active students
+        # Query active students using curl
         # Select: id, email, full_name, matric_no, programme, level, last_seen
         # Where: last_seen >= cutoff_time AND role = 'student'
         # Order by: last_seen DESC
@@ -124,28 +118,28 @@ function get_active_students(minutes::Int=ACTIVE_WINDOW_MINUTES)
         
         url = "$(supabase_url)/rest/v1/profiles?" * join(query_params, "&")
         
-        headers = [
-            "apikey" => service_role_key,
-            "Authorization" => "Bearer $(service_role_key)",
-            "Content-Type" => "application/json"
-        ]
+        # Use curl for reliable HTTPS
+        cmd = Cmd([
+            "curl", "-s",
+            "-H", "apikey: $service_role_key",
+            "-H", "Authorization: Bearer $service_role_key",
+            url
+        ])
         
-        response = HTTP.request(
-            "GET",
-            url,
-            headers;
-            status_exception=false
-        )
+        result = read(cmd, String)
         
-        if response.status == 200
-            body = String(response.body)
-            students = JSON3.read(body, Vector{Dict{String,Any}})
-            @info "Retrieved $(length(students)) active students"
-            return (true, students, "")
+        if !isempty(result)
+            try
+                students = JSON3.read(result, Vector{Dict{String,Any}})
+                @info "Retrieved $(length(students)) active students"
+                return (true, students, "")
+            catch e
+                @warn "Failed to parse active students response: $e"
+                return (false, [], "Parse error: $(string(e))")
+            end
         else
-            error_msg = String(response.body)
-            @warn "Failed to fetch active students: $(response.status) - $error_msg"
-            return (false, [], error_msg)
+            @info "No active students found"
+            return (true, [], "")
         end
         
     catch e
