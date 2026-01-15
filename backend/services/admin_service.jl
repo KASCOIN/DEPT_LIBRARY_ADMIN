@@ -169,8 +169,40 @@ function upload_material_to_supabase(
             return (false, "Upload failed: $error_msg", nothing)
         end
         
-        # Save material metadata to JSON
+        # Save material metadata to Supabase database AND JSON fallback
         try
+            # Extract file extension for material_type
+            material_type = ""
+            if contains(filename, ".")
+                ext = lowercase(split(filename, ".")[end])
+                material_type = ext
+            end
+            
+            # Try to insert into Supabase database first
+            db_metadata_success = false
+            if !isnothing(SupabaseDbService.DB_CONFIG)
+                @info "Inserting material metadata into Supabase database..."
+                db_success, db_error = SupabaseDbService.insert_material_metadata(
+                    programme,
+                    level,
+                    sem,
+                    course_code,
+                    filename,  # material_name
+                    material_type,
+                    storage_path
+                )
+                
+                if db_success
+                    @info "✓ Material metadata saved to Supabase database: $storage_path"
+                    db_metadata_success = true
+                else
+                    @warn "Failed to save metadata to Supabase database: $db_error"
+                end
+            else
+                @warn "Database not configured - skipping Supabase metadata insert"
+            end
+            
+            # Always save to JSON as fallback/backup
             material_metadata = Dict{String,Any}(
                 "storage_path" => storage_path,
                 "filename" => filename,
@@ -179,15 +211,17 @@ function upload_material_to_supabase(
                 "level" => level,
                 "semester" => sem,
                 "category" => category,
+                "material_type" => material_type,
                 "size_bytes" => length(file_data),
                 "uploaded_at" => string(now()),
-                "status" => "available"
+                "status" => "available",
+                "db_synced" => db_metadata_success
             )
             
-            # Append to materials metadata
+            # Append to materials metadata JSON (fallback)
             save_to_json("materials_metadata.json", material_metadata)
             
-            @info "Material uploaded successfully: $storage_path"
+            @info "Material uploaded successfully: $storage_path (DB synced: $db_metadata_success)"
             return (true, "", storage_path)
             
         catch e
@@ -330,4 +364,47 @@ function get_download_url(storage_path::String, expires_in::Int=3600)::Tuple{Boo
     end
 end
 
+"""
+    rename_course_materials_in_b2(
+        programme::String,
+        level::String,
+        old_course_code::String,
+        new_course_code::String
+    )::Tuple{Bool, String}
+
+Rename materials in storage when a course code is updated.
+This is a placeholder - actual implementation would require listing and
+moving files in the storage backend.
+
+For Supabase Storage, files cannot be renamed directly. Instead:
+1. Download all files for the old course
+2. Upload them with the new course code
+3. Delete the old files
+
+This is a costly operation and may not be implemented for performance reasons.
+
+Returns: (success::Bool, message::String)
+"""
+function rename_course_materials_in_b2(
+    programme::String,
+    level::String,
+    old_course_code::String,
+    new_course_code::String
+)::Tuple{Bool, String}
+    
+    @warn "rename_course_materials_in_b2: Course material renaming not implemented for Supabase Storage"
+    @warn "Old course code: $old_course_code, New course code: $new_course_code"
+    
+    # In a full implementation, you would:
+    # 1. List all files with the old course code in the path
+    # 2. For each file, download it and re-upload with the new path
+    # 3. Delete the old files
+    
+    # For now, just log the request and return success
+    # The actual file renaming would need to be done manually or via a batch job
+    
+    return (true, "Course material renaming logged but not executed. Please manually update material paths if needed.")
 end
+
+end  # module AdminService
+

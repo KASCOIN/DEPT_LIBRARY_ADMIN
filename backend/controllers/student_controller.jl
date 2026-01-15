@@ -6,12 +6,10 @@ using Genie.Requests
 using HTTP
 using ..AppConfig
 using ..SupabaseDbService
+using ..AuthMiddleware
 using ..ActiveStudentService
 using Dates
 using JSON3
-
-# Import auth middleware
-include("../services/auth_middleware.jl")
 
 # Helper function to return JSON with CORS headers
 function json_cors(data::Any, status::Int=200)

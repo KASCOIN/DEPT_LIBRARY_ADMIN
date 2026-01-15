@@ -21,7 +21,6 @@ function initTimetableForm() {
     const entriesContainer = document.getElementById('tt-entries');
     const progSelect = document.getElementById('tt-programme');
     const levelSelect = document.getElementById('tt-level');
-    const semesterSelect = document.getElementById('tt-semester');
 
     const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
 
@@ -114,7 +113,6 @@ function initTimetableForm() {
         const day = daySelect.value;
         const prog = progSelect.value;
         const lvl = levelSelect.value;
-        const sem = semesterSelect.value;
         
         UI.showConfirmPopup({
             message: `Delete all timetable entries for <b>${day}</b>? This cannot be undone.`,
@@ -128,7 +126,6 @@ function initTimetableForm() {
                         body: JSON.stringify({
                             programme: prog,
                             level: lvl,
-                            semester: sem,
                             day: day
                         })
                     });
@@ -150,15 +147,14 @@ function initTimetableForm() {
         });
     }
 
-    // Load timetable from Supabase for selected day/prog/level/semester
+    // Load timetable from Supabase for selected day/prog/level
     async function loadFromSupabase() {
         try {
             const prog = progSelect.value;
             const lvl = levelSelect.value;
-            const sem = semesterSelect.value;
             const day = daySelect.value;
             
-            const url = `/api/admin/timetable?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}&semester=${encodeURIComponent(sem)}`;
+            const url = `/api/admin/timetable?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}`;
             console.log('Loading timetable from:', url);
             const response = await fetch(url);
             
@@ -233,25 +229,19 @@ function initTimetableForm() {
         });
     }
     
-    progSelect.addEventListener('change', ()=> {
+    progSelect.addEventListener('change', () => {
         // Save current edits but don't auto-load - require user to click Load button
         const { day, slots } = getCurrentEdits();
         currentData[day] = slots;
     });
     
-    levelSelect.addEventListener('change', ()=> {
-        // Save current edits but don't auto-load - require user to click Load button
-        const { day, slots } = getCurrentEdits();
-        currentData[day] = slots;
-    });
-    
-    semesterSelect.addEventListener('change', ()=> {
+    levelSelect.addEventListener('change', () => {
         // Save current edits but don't auto-load - require user to click Load button
         const { day, slots } = getCurrentEdits();
         currentData[day] = slots;
     });
 
-    // Delete day button handler - attach inside form init to access deleteDay function
+    // Delete day button handler
     const deleteDayBtn = document.getElementById('tt-delete-day-btn');
     if (deleteDayBtn) {
         // Remove old listeners by cloning
@@ -279,7 +269,6 @@ function initTimetableForm() {
         const payload = {
             programme: progSelect.value,
             level: levelSelect.value,
-            semester: semesterSelect.value,
             day: day, // current day from getCurrentEdits
             timetable: currentData
         };

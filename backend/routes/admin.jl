@@ -1,6 +1,6 @@
 # Admin routes
 using Genie.Router
-using ..AdminController: delete_course, delete_news, post_news, download_material, post_materials, post_timetable, post_courses, update_courses, delete_materials, get_news, get_materials, get_timetable, admin_get_courses, delete_timetable_slot, delete_timetable_day, get_active_students, admin_login, admin_logout, admin_verify_session, admin_verify_role
+using ..AdminController: delete_course, delete_news, post_news, download_material, post_materials, post_timetable, post_courses, update_courses, delete_materials, get_news, get_materials, get_timetable, admin_get_courses, delete_timetable_slot, delete_timetable_day, get_active_students
 using HTTP
 
 # CORS preflight handler: return required headers for browser OPTIONS requests
@@ -12,24 +12,7 @@ route("/*", method=OPTIONS) do
   ], "")
 end
 
-# ==================== AUTHENTICATION ENDPOINTS ====================
-# New Supabase-based admin role verification (public)
-route("/api/admin/verify-role", AdminController.admin_verify_role, method=POST)
-
-# Legacy authentication endpoints (for backward compatibility)
-route("/api/admin/auth/login", AdminController.admin_login, method=POST)
-route("/api/admin/auth/logout", AdminController.admin_logout, method=POST)
-route("/api/admin/auth/verify", AdminController.admin_verify_session, method=GET)
-
-# Serve admin login page at /admin-login route
-route("/admin-login", method=GET) do
-  admin_login_file = joinpath(@__DIR__, "..", "..", "frontend", "admin-login.html")
-  if isfile(admin_login_file)
-    return read(admin_login_file, String)
-  else
-    return "Admin login page not found"
-  end
-end
+# ==================== ADMIN ENDPOINTS ====================
 
 # Serve admin.html at /admin route
 route("/admin", method=GET) do

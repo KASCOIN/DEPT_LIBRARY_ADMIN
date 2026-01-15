@@ -3,38 +3,11 @@ using Genie.Router
 using Genie.Renderer.Json
 using Dates
 
-# Load environment variables from .env file
-dotenv_path = normpath(joinpath(@__DIR__, "..", ".env"))
-if isfile(dotenv_path)
-    # Parse and load .env file
-    open(dotenv_path) do f
-        for line in readlines(f)
-            line = strip(line)
-            # Skip comments, shebangs, and empty lines
-            if !startswith(line, "#") && !startswith(line, "#!/") && !isempty(line)
-                # Remove 'export ' prefix if present
-                line = replace(line, r"^export\s+" => "")
-                if contains(line, "=")
-                    parts = split(line, "="; limit=2)
-                    if length(parts) == 2
-                        key = strip(parts[1])
-                        value = strip(parts[2], ['"', '\''])
-                        ENV[key] = value
-                    end
-                end
-            end
-        end
-    end
-    println("[✓] Loaded environment variables from .env")
-end
-
 include("config/app.jl")
 include("models.jl")
 include("services/supabase_service.jl")
 include("services/supabase_db_service.jl")
 include("services/auth_middleware.jl")
-include("services/admin_auth_service.jl")
-include("services/supabase_admin_auth.jl")
 include("services/active_student_service.jl")
 include("services/admin_service.jl")
 include("controllers/admin_controller.jl")

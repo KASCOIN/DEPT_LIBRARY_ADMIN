@@ -1,7 +1,7 @@
 
 module SupabaseDbService
 
-export DB_CONFIG, delete_course_by_id, delete_news_by_id, get_news, get_materials, get_timetable, delete_timetable_slot, delete_timetable_slot_by_id, get_timetable_slot_ids_for_day
+export DB_CONFIG, delete_course_by_id, delete_news_by_id, get_news, get_materials, get_timetable, delete_timetable_slot, delete_timetable_slot_by_id, get_timetable_slot_ids_for_day, insert_material_metadata
 
 function delete_course_by_id(id::AbstractString)::Tuple{Bool, String}
     if isnothing(DB_CONFIG)
@@ -79,14 +79,13 @@ end
 function delete_course(
     programme::AbstractString,
     level::AbstractString,
-    semester::AbstractString,
     course_code::AbstractString
 )::Tuple{Bool, String}
     if isnothing(DB_CONFIG)
         return (false, "Database not configured")
     end
     try
-        url = "$(DB_CONFIG.url)/rest/v1/courses?programme=eq.$(HTTP.URIs.escapeuri(programme))&level=eq.$(HTTP.URIs.escapeuri(level))&semester=eq.$(HTTP.URIs.escapeuri(semester))&course_code=eq.$(HTTP.URIs.escapeuri(course_code))"
+        url = "$(DB_CONFIG.url)/rest/v1/courses?programme=eq.$(HTTP.URIs.escapeuri(programme))&level=eq.$(HTTP.URIs.escapeuri(level))&course_code=eq.$(HTTP.URIs.escapeuri(course_code))"
         headers = [
             "apikey" => DB_CONFIG.service_role_key,
             "Authorization" => "Bearer $(DB_CONFIG.service_role_key)",
@@ -168,14 +167,13 @@ end
 # ==================== COURSES ====================
 
 """
-    course_exists(course_code::String, level::String, semester::String)::Bool
+    course_exists(course_code::String, level::String)::Bool
 
-Check if a course with the given code, level, and semester already exists in the database.
+Check if a course with the given code and level already exists in the database.
 """
 function course_exists(
     course_code::AbstractString,
-    level::AbstractString,
-    semester::AbstractString
+    level::AbstractString
 )::Bool
     
     if isnothing(DB_CONFIG)
@@ -183,8 +181,8 @@ function course_exists(
     end
     
     try
-        # Query for existing course with same code, level, semester
-        url = "$(DB_CONFIG.url)/rest/v1/courses?course_code=eq.$(HTTP.URIs.escapeuri(course_code))&level=eq.$(HTTP.URIs.escapeuri(level))&semester=eq.$(HTTP.URIs.escapeuri(semester))"
+        # Query for existing course with same code and level
+        url = "$(DB_CONFIG.url)/rest/v1/courses?course_code=eq.$(HTTP.URIs.escapeuri(course_code))&level=eq.$(HTTP.URIs.escapeuri(level))"
         
         cmd = Cmd([
             "curl", "-s",
@@ -209,7 +207,6 @@ end
 function insert_course(
     programme::AbstractString,
     level::AbstractString,
-    semester::AbstractString,
     course_code::AbstractString,
     course_title::AbstractString,
     advisor::AbstractString="";
@@ -222,8 +219,8 @@ function insert_course(
     end
     
     # Check if course already exists
-    if course_exists(course_code, level, semester)
-        return (false, "Course $course_code already exists for Level $level - $semester (skipped to prevent duplicates)")
+    if course_exists(course_code, level)
+        return (false, "Course $course_code already exists for Level $level (skipped to prevent duplicates)")
     end
     
     try
@@ -239,7 +236,6 @@ function insert_course(
         body = Dict(
             "programme" => programme,
             "level" => level,
-            "semester" => semester,
             "course_code" => course_code,
             "course_title" => course_title,
             "advisor" => advisor,
@@ -249,7 +245,7 @@ function insert_course(
               "lecturer_3" => get(kwargs, :lecturer_3, "")
         )
         
-        println(stderr, "[INSERT_COURSE] Inserting: $course_code for $programme/$level/$semester with $units units")
+        println(stderr, "[INSERT_COURSE] Inserting: $course_code for $programme/$level with $units units")
         println(stderr, "[INSERT_COURSE] Body: $body")
         
         response = HTTP.post(
@@ -279,8 +275,7 @@ end
 
 function get_courses(
     programme::AbstractString,
-    level::AbstractString,
-    semester::AbstractString
+    level::AbstractString
 )::Tuple{Bool, String, Vector}
     
     if isnothing(DB_CONFIG)
@@ -288,8 +283,13 @@ function get_courses(
         return (false, "Database not configured", [])
     end
     
+    # Log the exact parameters received
+    println(stderr, "[DEBUG get_courses] Received params:")
+    println(stderr, "  programme: '$programme' (type: $(typeof(programme)))")
+    println(stderr, "  level: '$level' (type: $(typeof(level)))")
+    
     try
-        url = "$(DB_CONFIG.url)/rest/v1/courses?programme=eq.$(HTTP.URIs.escapeuri(programme))&level=eq.$(HTTP.URIs.escapeuri(level))&semester=eq.$(HTTP.URIs.escapeuri(semester))"
+        url = "$(DB_CONFIG.url)/rest/v1/courses?programme=eq.$(HTTP.URIs.escapeuri(programme))&level=eq.$(HTTP.URIs.escapeuri(level))"
         
         println(stderr, "DEBUG: Fetching courses from Supabase: $url")
         

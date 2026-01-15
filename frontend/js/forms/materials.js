@@ -2,6 +2,123 @@
  * Material Upload Logic
  */
 
+// ============================================================
+// GLOBAL UI LOCK - Prevents recursive UI refresh loops
+// ============================================================
+const uiLock = {
+    _lockCount: 0,
+    
+    isLocked() {
+        return this._lockCount > 0;
+    },
+    
+    lock() {
+        this._lockCount++;
+        console.log(`[UI Lock] Locked (count: ${this._lockCount})`);
+    },
+    
+    unlock() {
+        if (this._lockCount > 0) {
+            this._lockCount--;
+            console.log(`[UI Lock] Unlocked (count: ${this._lockCount})`);
+        }
+    },
+    
+    // Execute function with lock held - prevents nested operations
+    async withLock(fn) {
+        this.lock();
+        try {
+            return await fn();
+        } finally {
+            this.unlock();
+        }
+    }
+};
+
+// ============================================================
+// CHUNKED BASE64 CONVERSION - Handles large files safely
+// ============================================================
+function bufferToBase64(buffer) {
+    const uint8Array = new Uint8Array(buffer);
+    const chunkSize = 32768; // 32KB chunks to prevent stack overflow
+    let binaryString = '';
+
+    // Convert to binary string in chunks
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+        binaryString += String.fromCharCode(...chunk);
+    }
+
+    // Convert binary string to base64
+    return btoa(binaryString);
+}
+
+// ============================================================
+// LOAD ADMIN MATERIALS QUEUE - Debounces and queues all calls
+// ============================================================
+const loadAdminMaterialsQueue = {
+    _queue: [],
+    _isProcessing: false,
+    _lastCallTime: 0,
+    _debounceDelay: 100, // ms
+    
+    // Add a call to the queue
+    enqueue(programme, level, course) {
+        this._queue.push({ programme, level, course, timestamp: Date.now() });
+        this._processQueue();
+    },
+    
+    // Process queue sequentially with debouncing
+    async _processQueue() {
+        if (this._isProcessing) return;
+        
+        this._isProcessing = true;
+        
+        while (this._queue.length > 0) {
+            // Debounce: wait between calls
+            const now = Date.now();
+            const timeSinceLastCall = now - this._lastCallTime;
+            if (timeSinceLastCall < this._debounceDelay) {
+                await new Promise(resolve => setTimeout(resolve, this._debounceDelay - timeSinceLastCall));
+            }
+            
+            // Get next item
+            const item = this._queue.shift();
+            this._lastCallTime = Date.now();
+            
+            // Skip if UI is locked (don't process during another operation)
+            if (uiLock.isLocked()) {
+                console.log('[Materials Queue] Skipping - UI is locked');
+                continue;
+            }
+            
+            try {
+                await loadAdminMaterials(item.programme, item.level, item.course);
+            } catch (error) {
+                console.error('[Materials Queue] Error processing call:', error);
+            }
+        }
+        
+        this._isProcessing = false;
+    },
+    
+    // Clear pending calls
+    clear() {
+        const count = this._queue.length;
+        this._queue = [];
+        console.log(`[Materials Queue] Cleared ${count} pending calls`);
+    },
+    
+    get queueLength() {
+        return this._queue.length;
+    }
+};
+
+// ============================================================
+// EVENT HANDLER ATTACHMENT FLAG - Ensures handlers attached once
+// ============================================================
+let _slotButtonHandlersAttached = false;
+
 // Use SUPABASE_URL and SUPABASE_ANON_KEY from admin-config.js (already loaded)
 // Note: supabaseClient is already created in admin-config.js
 
@@ -9,7 +126,6 @@ function initMaterialsForm() {
     const form = document.getElementById('form-materials');
     const programmeSelect = document.getElementById('m-programme');
     const levelSelect = document.getElementById('m-level');
-    const semesterSelect = document.getElementById('m-semester');
     const courseSelect = document.getElementById('m-course-select');
     const courseTitleDisplay = document.getElementById('m-course-title-display');
     const courseTitleSpan = document.getElementById('m-course-title');
@@ -26,8 +142,16 @@ function initMaterialsForm() {
     console.log('✓ Fetch button exists:', fetchBtn !== null);
     console.log('✓ Fetch status element exists:', fetchStatus !== null);
 
-    // Initialize file upload fields
+    // Initialize file upload fields (only creates DOM once)
+    let _fileFieldsInitialized = false;
     function initializeFileFields() {
+        if (_fileFieldsInitialized) {
+            // Already initialized - just reset to empty state without destroying DOM
+            console.log('[File Fields] Already initialized, resetting slot states');
+            resetSlotUI();
+            return;
+        }
+        
         filesContainer.innerHTML = '';
         for (let i = 1; i <= 30; i++) {
             const fieldDiv = document.createElement('div');
@@ -55,18 +179,59 @@ function initMaterialsForm() {
             filesContainer.appendChild(fieldDiv);
         }
         
+        _fileFieldsInitialized = true;
+        
         // Hide files container until course is selected
         filesContainer.style.display = 'none';
+        
+        console.log('[File Fields] Initialized DOM once');
+    }
+    
+    // Reset all slots to empty state without destroying DOM
+    function resetSlotUI() {
+        for (let i = 1; i <= 30; i++) {
+            const label = filesContainer.querySelector(`.slot-label-${i}`);
+            const uploadBtn = filesContainer.querySelector(`.slot-upload-btn[data-slot="${i}"]`);
+            const viewBtn = filesContainer.querySelector(`.slot-view-btn[data-slot="${i}"]`);
+            const downloadBtn = filesContainer.querySelector(`.slot-download-btn[data-slot="${i}"]`);
+            const deleteBtn = filesContainer.querySelector(`.slot-delete-btn[data-slot="${i}"]`);
+            const fileInput = filesContainer.querySelector(`input[name="material_${i}"]`);
+            const statusSpan = filesContainer.querySelector(`.slot-status-${i}`);
+            
+            if (label) label.innerHTML = `<strong>Material ${i}</strong>`;
+            if (uploadBtn) {
+                uploadBtn.disabled = false;
+                uploadBtn.style.opacity = '1';
+                uploadBtn.style.cursor = 'pointer';
+                uploadBtn.textContent = '📤 Upload';
+            }
+            if (fileInput) fileInput.disabled = false;
+            if (viewBtn) {
+                viewBtn.disabled = true;
+                viewBtn.style.opacity = '0.5';
+                viewBtn.style.cursor = 'not-allowed';
+            }
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+                downloadBtn.style.opacity = '0.5';
+                downloadBtn.style.cursor = 'not-allowed';
+            }
+            if (deleteBtn) {
+                deleteBtn.disabled = true;
+                deleteBtn.style.opacity = '0.5';
+                deleteBtn.style.cursor = 'not-allowed';
+            }
+            if (statusSpan) statusSpan.textContent = 'Empty';
+        }
     }
 
-    // Load courses based on programme, level, and semester
+// Load courses based on programme and level
     async function loadCourses() {
         try {
             const prog = programmeSelect.value;
             const lvl = levelSelect.value;
-            const sem = semesterSelect.value;
             
-            console.log(`Fetching courses for ${prog} Level ${lvl} - ${sem}...`);
+            console.log(`Fetching courses for ${prog} Level ${lvl}...`);
             
             if (fetchStatus) {
                 fetchStatus.textContent = '⏳ Loading...';
@@ -79,16 +244,16 @@ function initMaterialsForm() {
             courseTitleDisplay.style.display = 'none';
             
             // Validate selections
-            if (!prog || !lvl || !sem) {
+            if (!prog || !lvl) {
                 if (fetchStatus) {
-                    fetchStatus.textContent = 'Please select programme, level, and semester';
+                    fetchStatus.textContent = 'Please select programme and level';
                     fetchStatus.style.color = '#dc3545';
                 }
                 return;
             }
             
-            // Use query parameters to fetch only courses for the selected programme/level/semester
-            const url = `/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}&semester=${encodeURIComponent(sem)}`;
+            // Use query parameters to fetch only courses for the selected programme/level
+            const url = `/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}`;
             console.log('Calling API:', url);
             
             const response = await fetch(url);
@@ -167,40 +332,49 @@ function initMaterialsForm() {
         }
     }
 
-    // Handle course selection
+    // Handle course selection with debouncing via queue
+    let courseSelectTimeout = null;
     courseSelect.addEventListener('change', (e) => {
-        if (e.target.value) {
-            const selectedOption = e.target.options[e.target.selectedIndex];
-            courseTitleSpan.textContent = selectedOption.dataset.title;
-            courseTitleDisplay.style.display = 'block';
-            filesContainer.style.display = 'block'; // Show files container when course selected
-            
-            // Load existing materials for this course from Supabase
-            const programme = programmeSelect.value;
-            const level = levelSelect.value;
-            const semester = semesterSelect ? semesterSelect.value : null;
-            const courseCode = e.target.value;
-            
-            console.log(`📂 Course selected: ${courseCode}. Loading materials...`);
-            loadAdminMaterials(programme, level, semester, courseCode);
-        } else {
-            courseTitleDisplay.style.display = 'none';
-            filesContainer.style.display = 'none'; // Hide files container when no course selected
+        // Clear any pending timeout
+        if (courseSelectTimeout) {
+            clearTimeout(courseSelectTimeout);
         }
+
+        // Debounce the course selection to prevent rapid successive calls
+        courseSelectTimeout = setTimeout(() => {
+            // Check if we should ignore this change event (e.g., during form reset)
+            if (courseSelect._ignoreChangeEvent) {
+                console.log('Ignoring course change event (form reset in progress)');
+                return;
+            }
+
+            if (e.target.value) {
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                courseTitleSpan.textContent = selectedOption.dataset.title;
+                courseTitleDisplay.style.display = 'block';
+                filesContainer.style.display = 'block'; // Show files container when course selected
+
+                // Load existing materials for this course from Supabase (via queue)
+                const programme = programmeSelect.value;
+                const level = levelSelect.value;
+                const courseCode = e.target.value;
+
+                console.log(`📂 Course selected: ${courseCode}. Loading materials via queue...`);
+                loadAdminMaterialsQueue.enqueue(programme, level, courseCode);
+            } else {
+                courseTitleDisplay.style.display = 'none';
+                filesContainer.style.display = 'none'; // Hide files container when no course selected
+            }
+        }, 100); // Small debounce delay
     });
 
-    // Handle programme, level, and semester changes
+    // Handle programme and level changes
     programmeSelect.addEventListener('change', () => {
         loadCourses();
     });
     levelSelect.addEventListener('change', () => {
         loadCourses();
     });
-    if (semesterSelect) {
-        semesterSelect.addEventListener('change', () => {
-            loadCourses();
-        });
-    }
 
     // Handle fetch button click
     if (fetchBtn) {
@@ -233,7 +407,7 @@ function initMaterialsForm() {
     // Handle form submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const selectedCourse = courseSelect.value;
         if (!selectedCourse) {
             UI.notify("Please select a course", false);
@@ -242,59 +416,55 @@ function initMaterialsForm() {
 
         const programme = programmeSelect.value;
         const level = levelSelect.value;
-        const semester = semesterSelect ? semesterSelect.value : null;
-        
-        // Require semester selection when the semester dropdown is present
-        if (semesterSelect && (!semester || semester === '')) {
-            UI.notify('Please select a semester (First or Second)', false);
-            return;
-        }
 
         const fileInputs = form.querySelectorAll('.material-file');
         const filesSelected = Array.from(fileInputs).filter(input => input.files.length > 0);
-        
+
         if (filesSelected.length === 0) {
             UI.notify("Please select at least one file to upload", false);
             return;
         }
 
-        try {
-            // Upload each selected file
-            for (const fileInput of filesSelected) {
-                const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
-                formData.append('programme', programme);
-                formData.append('level', level);
-                formData.append('course', selectedCourse);
-                formData.append('title', fileInput.files[0].name);
-                
-                // Add semester if available
-                if (semester) {
-                    formData.append('semester', semester);
+        // Use UI lock to prevent recursive calls during batch upload
+        await uiLock.withLock(async () => {
+            try {
+                // Upload each selected file
+                for (const fileInput of filesSelected) {
+                    // Convert file to base64 using chunked function
+                    const fileBuffer = await fileInput.files[0].arrayBuffer();
+                    const fileBase64 = bufferToBase64(fileBuffer);
+
+                    const uploadData = {
+                        file_base64: fileBase64,
+                        filename: fileInput.files[0].name,
+                        programme: programme,
+                        level: level,
+                        course: selectedCourse,
+                        title: fileInput.files[0].name
+                    };
+
+                    const result = await API.post('/api/admin/materials', uploadData, false);
+                    if (!result.success) {
+                        UI.notify("Upload failed for " + fileInput.files[0].name + ": " + (result.message || "Unknown error"), false);
+                        return;
+                    }
                 }
 
-                const result = await API.post('/api/admin/materials', formData, true);
-                if (!result.success) {
-                    UI.notify("Upload failed for " + fileInput.files[0].name + ": " + (result.message || "Unknown error"), false);
-                    return;
-                }
+                UI.notify(`Successfully uploaded ${filesSelected.length} file(s) to course ${selectedCourse}`);
+
+                // Reset form without recreating DOM (just clear file inputs and reset slot states)
+                form.reset();
+                courseTitleDisplay.style.display = 'none';
+                resetSlotUI(); // Use resetSlotUI instead of initializeFileFields
+
+                // Queue materials reload after batch upload (lock will prevent immediate processing)
+                setTimeout(() => {
+                    loadAdminMaterialsQueue.enqueue(programme, level, selectedCourse);
+                }, 500);
+            } catch (error) {
+                UI.notify("Upload failed: " + error.message, false);
             }
-            
-            UI.notify(`Successfully uploaded ${filesSelected.length} file(s) to course ${selectedCourse}${semester ? ' (' + semester + ')' : ''}`);
-            form.reset();
-            courseTitleDisplay.style.display = 'none';
-            initializeFileFields();
-            
-            // Reload materials after batch upload
-            const prog = programmeSelect.value;
-            const lvl = levelSelect.value;
-            const sem = semesterSelect ? semesterSelect.value : null;
-            setTimeout(() => {
-                loadAdminMaterials(prog, lvl, sem, selectedCourse);
-            }, 500);
-        } catch (error) {
-            UI.notify("Upload failed: " + error.message, false);
-        }
+        });
     });
 
     // Initialize on load
@@ -317,34 +487,59 @@ let adminFilesContainer = null;
  * Load materials for a specific course from the backend API
  * This function is used to refresh the materials list in the admin portal
  */
-async function loadAdminMaterials(filterProgramme = null, filterLevel = null, filterSemester = null, filterCourse = null) {
+async function loadAdminMaterials(filterProgramme = null, filterLevel = null, filterCourse = null) {
     if (!adminFilesContainer) {
         console.warn('Admin files container not available');
         return;
     }
-    
+
+    // Create a unique call signature to prevent duplicate concurrent calls with same parameters
+    const callSignature = `${filterProgramme || 'null'}-${filterLevel || 'null'}-${filterCourse || 'null'}`;
+
+    // Prevent concurrent calls with the same parameters to avoid recursion
+    if (loadAdminMaterials._activeCalls && loadAdminMaterials._activeCalls.has(callSignature)) {
+        console.warn(`loadAdminMaterials already in progress for same parameters: ${callSignature}, skipping`);
+        return;
+    }
+
+    // Initialize the active calls set if it doesn't exist
+    if (!loadAdminMaterials._activeCalls) {
+        loadAdminMaterials._activeCalls = new Set();
+    }
+
+    // Add this call to active calls
+    loadAdminMaterials._activeCalls.add(callSignature);
+
     try {
         // Build query string with filters
         let url = '/api/materials';
         const params = new URLSearchParams();
-        
-        console.log(`📥 loadAdminMaterials called with: programme='${filterProgramme}', level='${filterLevel}', semester='${filterSemester}', course='${filterCourse}'`);
-        
+
+        console.log(`📥 loadAdminMaterials called with: programme='${filterProgramme}', level='${filterLevel}', course='${filterCourse}'`);
+
         if (filterProgramme) params.append('programme', filterProgramme);
         if (filterLevel) params.append('level', filterLevel);
-        if (filterSemester) params.append('semester', filterSemester);
         if (filterCourse) params.append('course_code', filterCourse);
-        
+
         if (params.toString()) {
             url += '?' + params.toString();
         }
-        
+
         console.log('🔍 Fetching materials from:', url);
         let materials = [];
         let useBackend = true;
-        
+
         try {
-            const response = await fetch(url, { timeout: 5000 });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            clearTimeout(timeoutId);
+
             if (response.ok) {
                 materials = await response.json();
                 console.log('📦 Materials loaded from API:', materials);
@@ -356,47 +551,49 @@ async function loadAdminMaterials(filterProgramme = null, filterLevel = null, fi
             console.warn('Backend API error, falling back to direct Supabase:', backendError);
             useBackend = false;
         }
-        
+
         // If backend failed or no materials, try direct Supabase
         if (!useBackend || materials.length === 0) {
             console.log('📊 Fetching directly from Supabase...');
             let query = supabaseClient.from('materials').select('*');
-            
+
             if (filterProgramme) query = query.eq('programme', filterProgramme);
             if (filterLevel) query = query.eq('level', filterLevel);
-            if (filterSemester) query = query.eq('semester', filterSemester);
             if (filterCourse) query = query.eq('course_code', filterCourse);
-            
+
             const { data, error } = await query;
-            
+
             if (error) {
                 throw new Error(`Supabase error: ${error.message}`);
             }
-            
+
             materials = data || [];
             console.log('📦 Materials loaded from Supabase:', materials);
         }
-        
+
         console.log(`📊 Received ${materials.length} materials`);
-        
+
         // Reset slot materials
         adminSlotMaterials = {};
-        
+
         // Assign filtered materials to slots (one material per slot)
         materials.forEach((material, index) => {
             if (index < 30) {
                 adminSlotMaterials[index + 1] = material;
             }
         });
-        
+
         console.log('🔧 Slot materials assigned:', adminSlotMaterials);
-        
+
         // Update button states for each slot
         updateAdminButtonStates();
-        
+
     } catch (error) {
         console.error('✗ Error loading materials:', error);
         UI.notify('Error loading materials: ' + error.message, false);
+    } finally {
+        // Always remove this call from active calls
+        loadAdminMaterials._activeCalls.delete(callSignature);
     }
 }
 
@@ -514,68 +711,70 @@ function attachAdminSlotButtonHandlers() {
                 
                 const programme = document.getElementById('m-programme').value;
                 const level = document.getElementById('m-level').value;
-                const semester = document.getElementById('m-semester').value;
                 const filename = fileInput.files[0].name;
                 const filesize = fileInput.files[0].size;
                 
                 console.log(`📤 Uploading material for slot ${i}: ${filename}`);
-                console.log(`   Parameters: programme='${programme}', level='${level}', semester='${semester}', course='${selectedCourse}'`);
+                console.log(`   Parameters: programme='${programme}', level='${level}', course='${selectedCourse}'`);
                 
-                try {
-                    // Convert file to base64
-                    const fileBuffer = await fileInput.files[0].arrayBuffer();
-                    const fileBase64 = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-                    
-                    const uploadData = {
-                        file_base64: fileBase64,
-                        filename: fileInput.files[0].name,
-                        programme: programme,
-                        level: level,
-                        course: selectedCourse,
-                        title: filename,
-                        semester: semester || null
-                    };
-                    
-                    uploadBtn.disabled = true;
-                    uploadBtn.textContent = '⏳ Uploading...';
-                    
-                    const result = await API.post('/api/admin/materials', uploadData, false);
-                    if (result.success) {
-                        UI.notify(`Material ${i} uploaded successfully`);
-                        fileInput.value = '';
+                // Use UI lock to prevent recursive calls during upload
+                await uiLock.withLock(async () => {
+                    try {
+                        // Convert file to base64 using chunked function
+                        const fileBuffer = await fileInput.files[0].arrayBuffer();
+                        const fileBase64 = bufferToBase64(fileBuffer);
                         
-                        // Show filename in label immediately
-                        const label = adminFilesContainer.querySelector(`.slot-label-${i}`);
-                        if (label) {
-                            const ext = filename.split('.').pop().toLowerCase();
-                            let icon = '';
-                            if (ext === 'pdf') icon = '📄';
-                            else if (ext === 'ppt' || ext === 'pptx') icon = '📊';
-                            else if (ext === 'doc' || ext === 'docx') icon = '📝';
-                            else icon = '📁';
-                            let sizeText = '';
-                            if (typeof filesize === 'number' && !isNaN(filesize)) {
-                                sizeText = ` <span style="color:#888;font-size:13px;">(${(filesize / (1024 * 1024)).toFixed(2)} MB)</span>`;
+                        const uploadData = {
+                            file_base64: fileBase64,
+                            filename: fileInput.files[0].name,
+                            programme: programme,
+                            level: level,
+                            course: selectedCourse,
+                            title: filename
+                        };
+                        
+                        uploadBtn.disabled = true;
+                        uploadBtn.textContent = '⏳ Uploading...';
+                        
+                        const result = await API.post('/api/admin/materials', uploadData, false);
+                        if (result.success) {
+                            UI.notify(`Material ${i} uploaded successfully`);
+                            fileInput.value = '';
+                            
+                            // Show filename in label immediately
+                            const label = adminFilesContainer.querySelector(`.slot-label-${i}`);
+                            if (label) {
+                                const ext = filename.split('.').pop().toLowerCase();
+                                let icon = '';
+                                if (ext === 'pdf') icon = '📄';
+                                else if (ext === 'ppt' || ext === 'pptx') icon = '📊';
+                                else if (ext === 'doc' || ext === 'docx') icon = '📝';
+                                else icon = '📁';
+                                let sizeText = '';
+                                if (typeof filesize === 'number' && !isNaN(filesize)) {
+                                    sizeText = ` <span style="color:#888;font-size:13px;">(${(filesize / (1024 * 1024)).toFixed(2)} MB)</span>`;
+                                }
+                                label.innerHTML = `<strong style="color:#28a745;display:flex;align-items:center;gap:6px;">${icon} ${filename}${sizeText}</strong>`;
                             }
-                            label.innerHTML = `<strong style="color:#28a745;display:flex;align-items:center;gap:6px;">${icon} ${filename}${sizeText}</strong>`;
+                            
+                            // Queue materials reload after upload (lock will be released first)
+                            uploadBtn.textContent = '⏳ Updating...';
+                            setTimeout(() => {
+                                loadAdminMaterialsQueue.enqueue(programme, level, selectedCourse);
+                                console.log(`✓ Materials reload queued for slot ${i}`);
+                            }, 800);
+                            
+                        } else {
+                            UI.notify(`Upload failed: ${result.message || 'Unknown error'}`, false);
+                            uploadBtn.disabled = false;
+                            uploadBtn.textContent = '📤 Upload';
                         }
-                        
-                        // Reload materials to update button states
-                        uploadBtn.textContent = '⏳ Updating...';
-                        await new Promise(resolve => setTimeout(resolve, 800));
-                        await loadAdminMaterials(programme, level, semester, selectedCourse);
-                        console.log(`✓ Materials reloaded for slot ${i}`);
-                        
-                    } else {
-                        UI.notify(`Upload failed: ${result.message || 'Unknown error'}`, false);
+                    } catch (error) {
+                        UI.notify(`Upload error: ${error.message}`, false);
                         uploadBtn.disabled = false;
                         uploadBtn.textContent = '📤 Upload';
                     }
-                } catch (error) {
-                    UI.notify(`Upload error: ${error.message}`, false);
-                    uploadBtn.disabled = false;
-                    uploadBtn.textContent = '📤 Upload';
-                }
+                });
             };
         }
         
@@ -646,32 +845,36 @@ function attachAdminSlotButtonHandlers() {
                     confirmText: 'Delete',
                     cancelText: 'Cancel',
                     onConfirm: async () => {
-                        try {
-                            deleteBtn.disabled = true;
-                            deleteBtn.textContent = '⏳ Deleting...';
-                            const response = await API.delete('/api/admin/materials', {
-                                storage_path: material.storage_path
-                            });
-                            if (response.success) {
-                                UI.notify(`Material ${material.filename || material.material_name || i} deleted successfully`);
-                                closePDFViewer();
-                                setTimeout(async () => {
-                                    const programme = document.getElementById('m-programme').value;
-                                    const level = document.getElementById('m-level').value;
-                                    const semester = document.getElementById('m-semester').value;
-                                    const course = document.getElementById('m-course-select').value;
-                                    await loadAdminMaterials(programme, level, semester, course);
-                                }, 500);
-                            } else {
-                                UI.notify('Delete failed: ' + (response.message || 'Unknown error'), false);
+                        // Use UI lock to prevent recursive calls during delete
+                        await uiLock.withLock(async () => {
+                            try {
+                                deleteBtn.disabled = true;
+                                deleteBtn.textContent = '⏳ Deleting...';
+                                const response = await API.delete('/api/admin/materials', {
+                                    storage_path: material.storage_path
+                                });
+                                if (response.success) {
+                                    UI.notify(`Material ${material.filename || material.material_name || i} deleted successfully`);
+                                    closePDFViewer();
+                                    
+                                    // Queue materials reload after delete (lock will be released first)
+                                    setTimeout(() => {
+                                        const programme = document.getElementById('m-programme').value;
+                                        const level = document.getElementById('m-level').value;
+                                        const course = document.getElementById('m-course-select').value;
+                                        loadAdminMaterialsQueue.enqueue(programme, level, course);
+                                    }, 500);
+                                } else {
+                                    UI.notify('Delete failed: ' + (response.message || 'Unknown error'), false);
+                                    deleteBtn.disabled = false;
+                                    deleteBtn.textContent = '🗑️ Delete';
+                                }
+                            } catch (error) {
+                                UI.notify('Delete error: ' + error.message, false);
                                 deleteBtn.disabled = false;
                                 deleteBtn.textContent = '🗑️ Delete';
                             }
-                        } catch (error) {
-                            UI.notify('Delete error: ' + error.message, false);
-                            deleteBtn.disabled = false;
-                            deleteBtn.textContent = '🗑️ Delete';
-                        }
+                        });
                     }
                 });
             };
@@ -692,8 +895,14 @@ function initMaterialsManagement() {
     
     console.log('✓ Materials management (per-slot) initialized');
     
-    // Attach button handlers for per-slot operations
-    attachAdminSlotButtonHandlers();
+    // Attach button handlers only once using global flag
+    if (!_slotButtonHandlersAttached) {
+        _slotButtonHandlersAttached = true;
+        attachAdminSlotButtonHandlers();
+        console.log('✓ Slot button handlers attached (once)');
+    } else {
+        console.log('✓ Slot button handlers already attached, skipping');
+    }
 }
 
 // PDF.js-based inline viewer for admin (mirroring student.html)

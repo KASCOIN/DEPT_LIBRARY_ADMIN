@@ -138,6 +138,10 @@ function upload_file(
         # Build upload URL
         upload_url = "$(config.url)/storage/v1/object/$(config.bucket_name)/$object_path"
         
+        println("[SUPABASE_UPLOAD] Uploading file to: $upload_url")
+        println("[SUPABASE_UPLOAD] File size: $(length(file_data)) bytes")
+        println("[SUPABASE_UPLOAD] Object path: $object_path")
+        
         # Prepare headers with Service Role Key
         # The service_role_key is not a JWT, it should be sent as apikey header
         headers = [
@@ -159,14 +163,17 @@ function upload_file(
         
         # Check response status
         if response.status == 200
+            println("[SUPABASE_UPLOAD] ✓ Success: File uploaded to $object_path")
             @info "File uploaded successfully to Supabase: $object_path"
             return (true, "", object_path)
         elseif response.status == 401
             error_msg = "Supabase authentication failed. Check SUPABASE_SERVICE_ROLE_KEY."
+            println("[SUPABASE_UPLOAD] ✗ ERROR 401: $error_msg")
             @error error_msg
             return (false, error_msg, nothing)
         elseif response.status == 400
             body_str = String(response.body)
+            println("[SUPABASE_UPLOAD] ✗ ERROR 400: $body_str")
             error_msg = try
                 resp_json = JSON3.read(body_str, Dict)
                 get(resp_json, "message", "Bad request from Supabase")
@@ -175,14 +182,22 @@ function upload_file(
             end
             @error "Upload failed: $error_msg"
             return (false, error_msg, nothing)
+        elseif response.status == 413
+            error_msg = "File too large for Supabase Storage (max ~6MB per request)"
+            println("[SUPABASE_UPLOAD] ✗ ERROR 413: $error_msg")
+            @error error_msg
+            return (false, error_msg, nothing)
         else
-            error_msg = "Supabase returned status $(response.status)"
+            body_str = String(response.body)
+            error_msg = "Supabase returned status $(response.status): $body_str"
+            println("[SUPABASE_UPLOAD] ✗ ERROR $(response.status): $body_str")
             @error error_msg
             return (false, error_msg, nothing)
         end
         
     catch e
         error_msg = "Upload failed: $(string(e))"
+        println("[SUPABASE_UPLOAD] ✗ EXCEPTION: $error_msg")
         @error error_msg
         return (false, error_msg, nothing)
     end

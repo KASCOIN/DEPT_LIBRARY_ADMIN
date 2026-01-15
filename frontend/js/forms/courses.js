@@ -7,14 +7,12 @@ async function loadCoursesList() {
     try {
         const progSelect = document.getElementById('c-programme');
         const levelSelect = document.getElementById('c-level');
-        const semesterSelect = document.getElementById('c-semester');
         const coursesTable = document.getElementById('courses-table');
         
         if (!coursesTable) return;
         
         const prog = progSelect?.value || '';
         const lvl = levelSelect?.value || '';
-        const sem = semesterSelect?.value || '';
         
         if (!prog || !lvl) {
             const tbody = coursesTable.querySelector('tbody');
@@ -22,7 +20,7 @@ async function loadCoursesList() {
             return;
         }
         
-        const url = `/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}&semester=${encodeURIComponent(sem)}`;
+        const url = `/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}`;
         console.log('Loading courses from:', url);
         
         const response = await fetch(url);
@@ -118,7 +116,6 @@ function initCoursesForm() {
 
     const progSelect = document.getElementById('c-programme');
     const levelSelect = document.getElementById('c-level');
-    const semesterSelect = document.getElementById('c-semester');
     const advisorInput = document.getElementById('c-advisor');
     const entriesContainer = document.getElementById('c-entries');
 
@@ -127,7 +124,6 @@ function initCoursesForm() {
     // Track current selections to know the old key when changing
     let currentProg = progSelect.value;
     let currentLevel = levelSelect.value;
-    let currentSem = semesterSelect.value;
 
     function makeRow(index, value={code:'',title:'',lecturer1:'',lecturer2:'',lecturer3:'',type:'compulsory',units:1}){
         const row = document.createElement('div');
@@ -160,43 +156,62 @@ function initCoursesForm() {
     }
 
     async function renderCourses(){
-        entriesContainer.innerHTML = '';
-        
-        // Try loading from database first
-        let state = await loadFromDatabase();
-        
-        // Fall back to local storage if database returns nothing
-        if (!state) {
-            state = loadLocal();
+        try {
+            entriesContainer.innerHTML = '';
+
+            // Try loading from database first
+            let state = await loadFromDatabase();
+
+            // Fall back to local storage if database returns nothing
+            if (!state) {
+                state = loadLocal();
+            }
+
+            let courseData = state.courses || [];
+
+            // Validate: ensure all courses are actually for the selected programme/level
+            // This filters out any stale data that might have been saved with incorrect keys
+            courseData = courseData.filter(course => {
+                // Keep empty courses (they're placeholders)
+                if (!course.code && !course.title) return true;
+                // Keep valid courses
+                return course.code || course.title;
+            });
+
+            // Limit to prevent DOM overload and stack overflow
+            const maxRenderCourses = Math.min(MAX_COURSES, 20); // Reduced from 15 to 20 for safety
+
+            // Ensure we always have maxRenderCourses entries
+            while (courseData.length < maxRenderCourses) {
+                courseData.push({code:'',title:'',lecturer1:'',lecturer2:'',lecturer3:'',type:'compulsory'});
+            }
+
+            courseData.slice(0, maxRenderCourses).forEach((course, i) => {
+                entriesContainer.appendChild(makeRow(i, course));
+            });
+
+            if (courseData.length > maxRenderCourses) {
+                console.warn(`Limited rendering to ${maxRenderCourses} courses to prevent stack overflow`);
+            }
+        } catch (error) {
+            console.error('Error rendering courses:', error);
+            // Render minimal empty rows on error
+            for (let i = 0; i < Math.min(MAX_COURSES, 10); i++) {
+                entriesContainer.appendChild(makeRow(i, {code:'',title:'',lecturer1:'',lecturer2:'',lecturer3:'',type:'compulsory'}));
+            }
         }
-        
-        let courseData = state.courses || [];
-        
-        // Validate: ensure all courses are actually for the selected programme/level
-        // This filters out any stale data that might have been saved with incorrect keys
-        courseData = courseData.filter(course => {
-            // Keep empty courses (they're placeholders)
-            if (!course.code && !course.title) return true;
-            // Keep valid courses
-            return course.code || course.title;
-        });
-        
-        // Ensure we always have MAX_COURSES entries
-        while (courseData.length < MAX_COURSES) {
-            courseData.push({code:'',title:'',lecturer1:'',lecturer2:'',lecturer3:'',type:'compulsory'});
-        }
-        
-        courseData.slice(0, MAX_COURSES).forEach((course, i) => {
-            entriesContainer.appendChild(makeRow(i, course));
-        });
+    }
+
+    function getStorageKey(prog, lvl) {
+        return `courses_${prog || 'na'}_${lvl || 'na'}`;
     }
 
     function storageKey(){
-        return `courses:${progSelect.value}:${levelSelect.value}:${semesterSelect.value}`;
+        return getStorageKey(progSelect.value, levelSelect.value);
     }
 
     function getPrevStorageKey(){
-        return `courses:${currentProg}:${currentLevel}:${currentSem}`;
+        return getStorageKey(currentProg, currentLevel);
     }
 
     function loadLocal(){
@@ -212,9 +227,8 @@ function initCoursesForm() {
         try {
             const prog = progSelect.value;
             const lvl = levelSelect.value;
-            const sem = semesterSelect.value;
             
-            const url = `/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}&semester=${encodeURIComponent(sem)}`;
+            const url = `/api/admin/courses?programme=${encodeURIComponent(prog)}&level=${encodeURIComponent(lvl)}`;
             const response = await fetch(url);
             
             if (!response.ok) {
@@ -258,32 +272,75 @@ function initCoursesForm() {
     }
 
     function saveLocal(){
-        const rows = Array.from(entriesContainer.querySelectorAll('.c-row'));
-        const courses = rows.map(r=>({
-            code: r.querySelector('.c-code').value,
-            title: r.querySelector('.c-title').value,
-            lecturer1: r.querySelector('.c-lecturer1').value,
-            lecturer2: r.querySelector('.c-lecturer2').value,
-            lecturer3: r.querySelector('.c-lecturer3').value,
-            type: r.querySelector('.c-type:checked')?.value || 'compulsory',
-            units: parseInt(r.querySelector('.c-units').value) || 1
-        }));
-        
-        const state = {
-            advisor: advisorInput.value,
-            courses: courses.slice(0, MAX_COURSES) // Ensure max 15
-        };
-        localStorage.setItem(storageKey(), JSON.stringify(state));
+        try {
+            const rows = Array.from(entriesContainer.querySelectorAll('.c-row'));
+            const courses = rows.map(r=>({
+                code: r.querySelector('.c-code').value,
+                title: r.querySelector('.c-title').value,
+                lecturer1: r.querySelector('.c-lecturer1').value,
+                lecturer2: r.querySelector('.c-lecturer2').value,
+                lecturer3: r.querySelector('.c-lecturer3').value,
+                type: r.querySelector('.c-type:checked')?.value || 'compulsory',
+                units: parseInt(r.querySelector('.c-units').value) || 1
+            }));
+
+            const state = {
+                advisor: advisorInput.value,
+                courses: courses.slice(0, MAX_COURSES) // Ensure max 15
+            };
+
+            // Check data size before saving to prevent stack overflow
+            const dataString = JSON.stringify(state);
+            if (dataString.length > 1024 * 1024) { // 1MB limit
+                console.warn('Local storage data too large, skipping save');
+                return;
+            }
+
+            localStorage.setItem(storageKey(), dataString);
+        } catch (error) {
+            console.error('Error saving to localStorage:', error);
+        }
     }
 
+    let saveInProgress = false;
     function setupAutoSave(){
-        entriesContainer.addEventListener('input', ()=> saveLocal());
-        entriesContainer.addEventListener('change', ()=> saveLocal());
-        advisorInput.addEventListener('input', ()=> saveLocal());
+        entriesContainer.addEventListener('input', ()=> {
+            if (!saveInProgress) {
+                saveInProgress = true;
+                saveLocal();
+                setTimeout(() => saveInProgress = false, 100); // Reset after short delay
+            }
+        });
+        entriesContainer.addEventListener('change', ()=> {
+            if (!saveInProgress) {
+                saveInProgress = true;
+                saveLocal();
+                setTimeout(() => saveInProgress = false, 100); // Reset after short delay
+            }
+        });
+        advisorInput.addEventListener('input', ()=> {
+            if (!saveInProgress) {
+                saveInProgress = true;
+                saveLocal();
+                setTimeout(() => saveInProgress = false, 100); // Reset after short delay
+            }
+        });
     }
 
-    progSelect.addEventListener('change', async ()=> {
+    async function handleSelectionChange() {
         // Save current data with OLD key before switching
+        saveCurrentDataWithOldKey();
+
+        // Update current tracking
+        currentProg = progSelect.value;
+        currentLevel = levelSelect.value;
+
+        // Render with NEW key
+        await renderCourses();
+        advisorInput.value = loadLocal().advisor || '';
+    }
+
+    function saveCurrentDataWithOldKey() {
         const prevKey = getPrevStorageKey();
         const rows = Array.from(entriesContainer.querySelectorAll('.c-row'));
         const courses = rows.map(r=>({
@@ -296,15 +353,10 @@ function initCoursesForm() {
             units: parseInt(r.querySelector('.c-units').value) || 1
         }));
         localStorage.setItem(prevKey, JSON.stringify({advisor: advisorInput.value, courses}));
-        
-        // Update current tracking
-        currentProg = progSelect.value;
-        
-        // Render with NEW key
-        await renderCourses();
-        advisorInput.value = loadLocal().advisor || '';
-    });
-    levelSelect.addEventListener('change', async ()=> {
+    }
+
+    progSelect.addEventListener('change', handleSelectionChange);
+    levelSelect.addEventListener('change', async () => {
         // Save current data with OLD key before switching
         const prevKey = getPrevStorageKey();
         const rows = Array.from(entriesContainer.querySelectorAll('.c-row'));
@@ -326,28 +378,6 @@ function initCoursesForm() {
         await renderCourses();
         advisorInput.value = loadLocal().advisor || '';
     });
-    semesterSelect.addEventListener('change', async ()=> {
-        // Save current data with OLD key before switching
-        const prevKey = getPrevStorageKey();
-        const rows = Array.from(entriesContainer.querySelectorAll('.c-row'));
-        const courses = rows.map(r=>({
-            code: r.querySelector('.c-code').value,
-            title: r.querySelector('.c-title').value,
-            lecturer1: r.querySelector('.c-lecturer1').value,
-            lecturer2: r.querySelector('.c-lecturer2').value,
-            lecturer3: r.querySelector('.c-lecturer3').value,
-            type: r.querySelector('.c-type:checked')?.value || 'compulsory',
-            units: parseInt(r.querySelector('.c-units').value) || 1
-        }));
-        localStorage.setItem(prevKey, JSON.stringify({advisor: advisorInput.value, courses}));
-        
-        // Update current tracking
-        currentSem = semesterSelect.value;
-        
-        // Render with NEW key
-        await renderCourses();
-        advisorInput.value = loadLocal().advisor || '';
-    });
 
     // Initialize - load courses from database or localStorage
     renderCourses().then(() => {
@@ -357,43 +387,99 @@ function initCoursesForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        saveLocal();
-        
-        const state = loadLocal();
-        const data = {
-            programme: progSelect.value,
-            level: levelSelect.value,
-            semester: semesterSelect.value,
-            advisor: advisorInput.value,
-            courses: state.courses.filter(c => c.code || c.title) // Filter out empty courses
-        };
 
-        const result = await API.post('/api/admin/courses', data);
-        if (result && result.success) {
-            // Build detailed message
-            let message = "Courses saved successfully";
-            if (result.inserted) {
-                message = `✓ ${result.inserted} course(s) saved`;
+        // Prevent multiple simultaneous submissions
+        if (form.dataset.submitting === 'true') {
+            console.warn('Upload already in progress, ignoring duplicate submission');
+            return;
+        }
+        form.dataset.submitting = 'true';
+
+        try {
+            saveLocal();
+
+            const state = loadLocal();
+            // Limit courses to prevent stack overflow during JSON serialization
+            const maxCoursesToSend = 25; // Reduced from 50
+            let coursesToSend = state.courses.filter(c => c.code || c.title);
+
+            if (coursesToSend.length > maxCoursesToSend) {
+                coursesToSend = coursesToSend.slice(0, maxCoursesToSend);
+                console.warn(`Limiting upload to first ${maxCoursesToSend} courses to prevent stack overflow`);
             }
-            if (result.skipped) {
-                message += ` | ⚠ ${result.skipped} duplicate(s) skipped`;
+
+            const data = {
+                programme: progSelect.value,
+                level: levelSelect.value,
+                advisor: advisorInput.value,
+                courses: coursesToSend
+            };
+
+            console.log(`Sending ${coursesToSend.length} courses for upload`);
+
+            // Check for circular references before sending
+            try {
+                JSON.stringify(data);
+            } catch (e) {
+                console.error('Circular reference detected in data:', e);
+                UI.notify("Data contains circular references. Please refresh the page and try again.", false);
+                form.dataset.submitting = 'false';
+                return;
             }
-            
-            // Show detailed info if there are skipped courses
-            if (result.skipped_details && result.skipped_details.length > 0) {
-                console.log("Skipped courses:", result.skipped_details);
-                message += "\n\nDuplicate courses (not saved):\n" + result.skipped_details.map(s => "  - " + s).join("\n");
+
+            const result = await API.post('/api/admin/courses', data);
+            if (result && result.success) {
+                // Build detailed message
+                let message = "Courses saved successfully";
+                if (result.inserted) {
+                    message = `✓ ${result.inserted} course(s) saved`;
+                }
+                if (result.skipped) {
+                    message += ` | ⚠ ${result.skipped} duplicate(s) skipped`;
+                }
+
+                // Show detailed info if there are skipped courses (limited to prevent stack overflow)
+                if (result.skipped_details && result.skipped_details.length > 0) {
+                    console.log("Skipped courses:", result.skipped_details);
+                    const maxShow = 5; // Reduced from 10
+                    const shown = result.skipped_details.slice(0, maxShow);
+                    message += "\n\nDuplicate courses (not saved):\n" + shown.map(s => "  - " + s).join("\n");
+                    if (result.skipped_details.length > maxShow) {
+                        message += `\n... and ${result.skipped_details.length - maxShow} more`;
+                    }
+                }
+
+                UI.notify(message);
+                // Refresh the courses table after successful save
+                try {
+                    await loadCoursesList();
+                } catch (loadError) {
+                    console.error('Error refreshing courses list:', loadError);
+                    UI.notify("Courses saved but failed to refresh the list. Please refresh the page.", false);
+                }
+            } else {
+                let errorMsg = "Failed to save courses: " + (result?.message || "Unknown error");
+                if (result?.error_details && result.error_details.length > 0) {
+                    // Limit error details display
+                    const maxErrors = 5;
+                    const shownErrors = result.error_details.slice(0, maxErrors);
+                    errorMsg += "\n\nErrors:\n" + shownErrors.map(e => "  - " + e).join("\n");
+                    if (result.error_details.length > maxErrors) {
+                        errorMsg += `\n... and ${result.error_details.length - maxErrors} more errors`;
+                    }
+                }
+                UI.notify(errorMsg, false);
             }
-            
-            UI.notify(message);
-            // Refresh the courses table after successful save
-            await loadCoursesList();
-        } else {
-            let errorMsg = "Failed to save courses: " + (result?.message || "Unknown error");
-            if (result?.error_details && result.error_details.length > 0) {
-                errorMsg += "\n\nErrors:\n" + result.error_details.map(e => "  - " + e).join("\n");
+        } catch (error) {
+            console.error('Error during course upload:', error);
+            if (error.message && error.message.includes('stack')) {
+                UI.notify("Upload failed due to data size. Try uploading fewer courses at once.", false);
+            } else {
+                UI.notify("An error occurred during upload. Please check the console for details.", false);
             }
-            UI.notify(errorMsg, false);
+        } finally {
+            // Always reset the submitting flag
+            form.dataset.submitting = 'false';
         }
     });
 }
@@ -406,7 +492,6 @@ function initCoursesManagement() {
     const refreshBtn = document.getElementById('courses-refresh-btn');
     const progSelect = document.getElementById('c-programme');
     const levelSelect = document.getElementById('c-level');
-    const semesterSelect = document.getElementById('c-semester');
     
     if (!coursesTable) {
         console.log('Courses management not available on this page');
@@ -438,10 +523,9 @@ function initCoursesManagement() {
         });
     }
     
-    // Refresh when programme/level/semester changes
+    // Refresh when programme/level changes
     if (progSelect) progSelect.addEventListener('change', loadCoursesList);
     if (levelSelect) levelSelect.addEventListener('change', loadCoursesList);
-    if (semesterSelect) semesterSelect.addEventListener('change', loadCoursesList);
     
     // Load courses on page load
     loadCoursesList();

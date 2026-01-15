@@ -71,11 +71,14 @@ const API = {
             headers
         });
 
-        if (response.status === 401) {
-            // Token expired or invalid
+        if (response.status === 401 || response.status === 403) {
+            // Unauthorized or Forbidden - clear tokens and redirect
+            localStorage.removeItem('admin_jwt');
             localStorage.removeItem('admin_token');
-            window.location.href = '/login.html';
-            throw new Error('Session expired. Please login again.');
+            localStorage.removeItem('admin_email');
+            localStorage.removeItem('admin_user_id');
+            window.location.href = '/admin-login';
+            throw new Error('Session expired or access denied. Please login again.');
         }
 
         if (!response.ok) {
@@ -101,13 +104,6 @@ const API = {
             throw new Error('Session expired. Please login again.');
         }
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        return await response.json();
-    }
-};
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
